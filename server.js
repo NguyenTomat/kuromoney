@@ -294,22 +294,51 @@ const server = http.createServer((req, res) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Quét Mã Để Mở KuroMoney Trên Điện Thoại</title>
+  <title>KuroMoney - Quét QR Cài Đặt Lên iPhone & Android</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #FAF5FF; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; }
-    .card { background: white; padding: 30px; border-radius: 24px; box-shadow: 0 10px 30px rgba(124,58,237,0.15); border: 2px solid #E9D5FF; max-width: 360px; }
-    h2 { color: #581C87; margin: 0 0 10px; font-size: 20px; }
-    p { color: #7E69AB; font-size: 13px; line-height: 1.5; margin: 0 0 20px; }
-    .qr-img { border-radius: 16px; border: 4px solid #FDF2F8; box-shadow: 0 4px 12px rgba(236,72,153,0.2); }
-    .url { margin-top: 18px; font-weight: 800; color: #BE185D; background: #FDF2F8; padding: 8px 14px; border-radius: 12px; font-size: 14px; word-break: break-all; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: radial-gradient(circle at top, #FDF4FF 0%, #F5E8FF 50%, #DDD6FE 100%); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px 14px; text-align: center; }
+    .card { background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(20px); padding: 26px 20px; border-radius: 30px; box-shadow: 0 16px 40px rgba(124,58,237,0.18); border: 2.5px solid #E9D5FF; max-width: 420px; width: 100%; position: relative; }
+    .mascot { width: 96px; height: 96px; object-fit: contain; filter: drop-shadow(0 6px 14px rgba(236,72,153,0.3)); margin-bottom: 6px; }
+    h2 { color: #2E1065; font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+    .sub { color: #EC4899; font-size: 11.5px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 16px; }
+    .qr-box { background: white; padding: 12px; border-radius: 22px; display: inline-block; border: 3px solid #F472B6; box-shadow: 0 8px 24px rgba(236,72,153,0.22); margin-bottom: 14px; }
+    .qr-img { width: 220px; height: 220px; border-radius: 12px; display: block; }
+    .guide-box { background: #FAF5FF; border-radius: 18px; padding: 14px; border: 1.5px solid #E9D5FF; text-align: left; margin: 14px 0; font-size: 11.5px; line-height: 1.55; color: #3B0764; }
+    .guide-title { font-weight: 800; color: #BE185D; margin-bottom: 6px; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+    .step { margin-bottom: 5px; }
+    .step b { color: #9333EA; }
+    .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+    .btn { flex: 1; padding: 11px; border-radius: 14px; font-size: 12px; font-weight: 800; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; transition: transform 0.15s; }
+    .btn:active { transform: scale(0.96); }
+    .btn-dl { background: linear-gradient(135deg, #EC4899, #9333EA); color: white; box-shadow: 0 4px 14px rgba(236,72,153,0.35); }
+    .btn-copy { background: #FAF5FF; color: #7C3AED; border: 1.5px solid #D8B4FE; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>🎀 Mở KuroMoney Trên Điện Thoại</h2>
-    <p>Mở <b>Camera trên iPhone/Android</b> rồi hướng vào mã QR này để vào test ngay trên máy bạn nhé!</p>
-    <img class="qr-img" src="${qrApiUrl}" alt="QR Code" width="260" height="260">
-    <div class="url">http://${localIp}:${PORT}</div>
+    <img src="/assets/chibi_perfect_3d.png" alt="Kuromi" class="mascot">
+    <h2>KuroMoney 🖤</h2>
+    <div class="sub">QUẢN LÝ CHI TIÊU CẶP ĐÔI PASTEL KUROMI ✨</div>
+
+    <div class="qr-box">
+      <img class="qr-img" src="${qrApiUrl}" alt="QR Code">
+    </div>
+
+    <div style="font-size:12px; font-weight:800; color:#581C87;">📲 Hướng Camera điện thoại vào để mở</div>
+
+    <div class="guide-box">
+      <div class="guide-title">📱 HƯỚNG DẪN CÀI LÊN MÀN HÌNH CHÍNH IPHONE:</div>
+      <div class="step">1. Mở camera quét mã trên để truy cập bằng <b>Safari</b>.</div>
+      <div class="step">2. Bấm nút <b>Chia sẻ</b> (ô vuông mũi tên chỉ lên ở đáy Safari).</div>
+      <div class="step">3. Chọn <b>"Thêm vào MH chính" (Add to Home Screen)</b>.</div>
+      <div class="step">4. Xong! Icon Kuromi sẽ xuất hiện trên màn hình, chạy full viền & có chuông báo!</div>
+    </div>
+
+    <div class="btn-row">
+      <a href="/assets/kuromi_install_card.png" download="The_Cai_Dat_Kuromi.png" class="btn btn-dl">📥 Tải Ảnh Thẻ QR Này</a>
+      <button onclick="navigator.clipboard.writeText('${targetUrl}'); alert('Đã sao chép link: ${targetUrl}');" class="btn btn-copy">📋 Sao Chép Link</button>
+    </div>
   </div>
 </body>
 </html>`;
