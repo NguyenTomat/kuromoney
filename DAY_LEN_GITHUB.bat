@@ -9,10 +9,10 @@ echo 1. Dang them file vao Git...
 git add .
 echo.
 echo 2. Dang commit code moi nhat...
-git commit -m "Cap nhat dang ky luu tai khoan, lich dong thoi gian thuc va bo data gia"
+git commit -m "Sua loi vo anh toast va cap nhat OneSignal"
 echo.
 echo 3. Dang day code len GitHub...
-git push -u origin main --force
+git push origin main
 echo.
 echo ========================================================
 echo THANH CONG! Web se tu dong cap nhat tai:
