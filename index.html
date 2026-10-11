@@ -2873,7 +2873,7 @@
               <span style="font-size:9.5px; color:#A21CAF; font-weight:800;">Chạm nghe phán ▾</span>
             </div>
             <div class="speech-text" id="aiSpeech">
-              "Hôm nay <b>10/10</b> vừa được cộng <b>+500.000đ</b> nhưng đã tiêu mất <b>230.000đ</b> rồi đấy! Nhịn ăn vặt nha! 😾"
+              "Chào sen! Chạm vào tôi để nghe phán hoặc bấm ghi sổ nha! 🖤✨"
             </div>
           </div>
         </div>
@@ -2898,20 +2898,20 @@
         <!-- Balance Card với cả Chi & Thu -->
         <div class="balance-card">
           <div class="balance-top">
-            <span id="periodLabel">BIẾN ĐỘNG NGÀY 10/10</span>
-            <span style="color:#FDF2F8; background:rgba(255,255,255,0.22); padding:3px 9px; border-radius:12px; font-size:10px;">Hạn mức: 350k</span>
+            <span id="periodLabel">BIẾN ĐỘNG HÔM NAY</span>
+            <span style="color:#FDF2F8; background:rgba(255,255,255,0.22); padding:3px 9px; border-radius:12px; font-size:10px;">Hạn mức ngày</span>
           </div>
-          <div class="balance-amount" id="periodAmount">+270.000 đ</div>
+          <div class="balance-amount" id="periodAmount">0 đ</div>
 
           <!-- Bảng Thu vào & Chi ra trong ngày -->
           <div class="cashflow-row">
             <div class="cashflow-item">
               <span class="cashflow-label">Được cộng (+)</span>
-              <span class="cashflow-val in" id="periodIncome">+500.000 đ</span>
+              <span class="cashflow-val in" id="periodIncome">+0 đ</span>
             </div>
             <div class="cashflow-item">
               <span class="cashflow-label">Đã chi (-)</span>
-              <span class="cashflow-val out" id="periodExpense">-230.000 đ</span>
+              <span class="cashflow-val out" id="periodExpense">-0 đ</span>
             </div>
           </div>
         </div>
@@ -2984,7 +2984,7 @@
 
         <!-- Timeline History -->
         <div class="timeline-date-sep">
-          <span id="txSectionLabel" style="color:var(--kuromi-purple);">BIẾN ĐỘNG TIỀN HÔM NAY (10/10)</span>
+          <span id="txSectionLabel" style="color:var(--kuromi-purple);">BIẾN ĐỘNG TIỀN HÔM NAY</span>
           <span style="font-size:9.5px; color:#10B981; font-weight:800;" id="dbStatusBadge">● Đã lưu realtime</span>
         </div>
 
@@ -3915,28 +3915,23 @@
         <div id="formRegister" style="display:none;">
           <div class="form-group">
             <label class="form-label">Tên của bạn / Biệt danh hiển thị</label>
-            <input type="text" id="inpRegName" class="form-input" placeholder="Ví dụ: Linh, Nam, Trâm, Mimi...">
+            <input type="text" id="inpRegName" class="form-input" placeholder="Ví dụ: Tunn, Bé Heo, Tomat...">
           </div>
 
           <div class="form-group">
-            <label class="form-label">Tên đối phương / Người ấy (Tùy chọn)</label>
-            <input type="text" id="inpRegPartnerName" class="form-input" placeholder="Ví dụ: Người ấy, Bé Heo, Cục Cưng...">
+            <label class="form-label">Tên đăng nhập (Email / SĐT / Nickname)</label>
+            <input type="text" id="inpRegEmail" class="form-input" placeholder="Nhập email, SĐT hoặc tên nick">
           </div>
 
           <div class="form-group">
-            <label class="form-label">Email hoặc Số điện thoại</label>
-            <input type="email" id="inpRegEmail" class="form-input" placeholder="name@email.com">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Mật khẩu (Ít nhất 6 ký tự)</label>
+            <label class="form-label">Mật khẩu</label>
             <div style="position:relative;">
-              <input type="password" id="inpRegPass" class="form-input" placeholder="Tạo mật khẩu bí mật" style="padding-right:40px;">
+              <input type="password" id="inpRegPass" class="form-input" placeholder="Tạo mật khẩu của bạn" style="padding-right:40px;">
               <span onclick="togglePasswordVisibility('inpRegPass')" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:14px; color:var(--text-muted);">👁️</span>
             </div>
           </div>
 
-          <button class="btn-save" onclick="handleRegisterSubmit()">Tạo Hồ Sơ & Bắt Đầu 💖</button>
+          <button class="btn-save" onclick="handleRegisterSubmit()">Tạo Tài Khoản & Vào Ví 💖</button>
 
           <!-- Quick Guest Access Button -->
           <div style="text-align:center; margin:14px 0 6px; font-size:10px; color:var(--text-muted); font-weight:700;">- HOẶC TRẢI NGHIỆM THỬ -</div>
@@ -4908,21 +4903,26 @@
     // ========================================================
     // DATABASE & FIREBASE LOCAL / REALTIME SYSTEM (KURO_DB)
     // ========================================================
-    const DB_STORAGE_KEY = 'KURO_EXPENSE_DATA_V4';
-    const CLEAN_DATA_FLAG = 'KURO_CLEAN_DATA_V4_DONE';
-
-    const defaultInitialData = {
-      '06/10': { title: '06/10 (Thứ 2)', txs: [] },
-      '07/10': { title: '07/10 (Thứ 3)', txs: [] },
-      '08/10': { title: '08/10 (Thứ 4)', txs: [] },
-      '09/10': { title: '09/10 (Thứ 5)', txs: [] },
-      '10/10': { title: '10/10 (Hôm nay)', txs: [] },
-      '11/10': { title: '11/10 (Ngày mai)', txs: [] },
-      '12/10': { title: '12/10 (Chủ nhật)', txs: [] }
-    };
+    // CƠ CHẾ DỮ LIỆU & LỊCH ĐỘNG THEO THỜI GIAN THỰC (NEW DATE)
+    // ========================================================
+    function getTodayInfo() {
+      const now = new Date();
+      const d = now.getDate();
+      const m = now.getMonth() + 1;
+      const y = now.getFullYear();
+      const dStr = String(d).padStart(2, '0');
+      const mStr = String(m).padStart(2, '0');
+      return {
+        date: d,
+        month: m,
+        year: y,
+        key: `${dStr}/${mStr}`,
+        fullDateStr: `${dStr}/${mStr}/${y}`
+      };
+    }
 
     let appData = {};
-    let selectedDateKey = '10/10';
+    let selectedDateKey = getTodayInfo().key;
 
     let currentWalletMode = 'solo';
 
@@ -4949,14 +4949,15 @@
         if (saved) {
           appData = JSON.parse(saved);
         } else {
-          appData = JSON.parse(JSON.stringify(defaultInitialData));
+          appData = {};
           saveDatabase();
         }
       } catch (e) {
-        appData = JSON.parse(JSON.stringify(defaultInitialData));
+        appData = {};
       }
 
       initPots();
+      selectedDateKey = getTodayInfo().key;
       renderCalendarStrip();
       selectDateByKey(selectedDateKey);
       if (typeof renderSmartAiAdvisor === 'function') renderSmartAiAdvisor();
@@ -5105,18 +5106,48 @@
     function renderCalendarStrip() {
       const scroll = document.getElementById('calDaysScroll');
       if (!scroll) return;
-      const keys = ['06/10', '07/10', '08/10', '09/10', '10/10', '11/10', '12/10'];
-      const dayNames = {
-        '06/10': 'T2', '07/10': 'T3', '08/10': 'T4', '09/10': 'T5',
-        '10/10': 'Hôm nay', '11/10': 'T7', '12/10': 'CN'
-      };
+
+      const now = new Date();
+      const todayInfo = getTodayInfo();
+      const todayKey = todayInfo.key;
+
+      // Cập nhật tiêu đề tháng trên dải lịch theo tháng thực tế
+      const monthTitleEl = document.querySelector('#calStripBox .cal-month-title span');
+      if (monthTitleEl) {
+        monthTitleEl.innerText = `Tháng ${todayInfo.month}, ${todayInfo.year}`;
+      }
+
+      // Tạo dải 7 ngày động theo ngày thực tế: 4 ngày trước, hôm nay, 2 ngày tới
+      // Giúp ngày Hôm nay luôn nằm ở vị trí gần cuối (thứ 5/7) hiển thị trọn vẹn
+      const keys = [];
+      const dayNames = {};
+      const dayOfWeekNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+      for (let offset = -4; offset <= 2; offset++) {
+        const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+        const dStr = String(targetDate.getDate()).padStart(2, '0');
+        const mStr = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const k = `${dStr}/${mStr}`;
+        keys.push(k);
+
+        if (offset === 0) {
+          dayNames[k] = 'Hôm nay';
+        } else {
+          dayNames[k] = dayOfWeekNames[targetDate.getDay()];
+        }
+
+        // Đảm bảo không có data giả, ban đầu luôn là mảng rỗng []
+        if (!appData[k]) {
+          appData[k] = { title: `${k} (${dayNames[k]})`, txs: [] };
+        }
+      }
 
       let html = '';
       keys.forEach(k => {
         const stats = calculateDayStats(k);
         const dayNum = k.split('/')[0];
         const isActive = (k === selectedDateKey);
-        const isToday = (k === '10/10');
+        const isToday = (k === todayKey);
 
         const incBadge = stats.income > 0 ? `<span class="day-badge-pill income">+${formatCompactMoney(stats.income)} 💸</span>` : `<span class="day-badge-pill income">+0k</span>`;
         const expBadge = stats.expense > 0 ? `<span class="day-badge-pill spend">-${formatCompactMoney(stats.expense)}</span>` : `<span class="day-badge-pill neutral">Nghỉ ngơi</span>`;
@@ -5150,9 +5181,10 @@
 
     function selectDateByKey(dateKey) {
       selectedDateKey = dateKey;
+      if (!appData[dateKey]) {
+        appData[dateKey] = { title: dateKey, txs: [] };
+      }
       const day = appData[dateKey];
-      if (!day) return;
-
       const stats = calculateDayStats(dateKey);
 
       document.getElementById('periodLabel').innerText = "BIẾN ĐỘNG NGÀY " + (day.title || dateKey).toUpperCase();
@@ -6552,19 +6584,35 @@
         html += `<div class="month-day-head">${d}</div>`;
       });
 
-      for(let i = 0; i < 3; i++) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      const currentDay = now.getDate();
+      const currentMonthStr = String(currentMonth + 1).padStart(2, '0');
+
+      // Cập nhật tiêu đề modal xem cả tháng
+      const fullMonthTitle = document.querySelector('#fullMonthModal .sheet-title');
+      if (fullMonthTitle) {
+        fullMonthTitle.innerText = `📅 Lịch Chi Tiêu Tháng ${currentMonth + 1}, ${currentYear}`;
+      }
+
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay(); // 0 is Sun, 1 is Mon
+      const paddingDays = (firstDayOfWeek === 0) ? 6 : (firstDayOfWeek - 1);
+
+      for (let i = 0; i < paddingDays; i++) {
         html += `<div></div>`;
       }
 
-      for(let day = 1; day <= 31; day++) {
+      for (let day = 1; day <= daysInMonth; day++) {
         const dayStr = day.toString().padStart(2, '0');
-        const key = `${dayStr}/10`;
-        const isToday = (day === 10);
+        const key = `${dayStr}/${currentMonthStr}`;
+        const isToday = (day === currentDay);
         const stats = calculateDayStats(key);
 
         let dotClass = 'neutral';
         if (stats.income > stats.expense && stats.income > 0) dotClass = 'surplus';
-        else if (stats.expense > 350000) dotClass = 'spend';
+        else if (stats.expense > 0) dotClass = 'spend';
 
         html += `
           <div class="month-day-cell ${isToday ? 'active-day' : ''}" onclick="selectDateFromMonth('${key}')">
@@ -6581,7 +6629,7 @@
       switchTab('Home', document.querySelectorAll('.tab-item')[0]);
 
       if (!appData[dateKey]) {
-        appData[dateKey] = { title: `${dateKey} (Tháng 10)`, txs: [] };
+        appData[dateKey] = { title: `${dateKey}`, txs: [] };
         saveDatabase();
       }
       selectDateByKey(dateKey);
@@ -6705,7 +6753,12 @@
       } catch (err) {}
 
       // 2. Fallback tìm trong usersList trên thiết bị
-      const partner = usersList.find(u => u.pairCode && u.pairCode.toUpperCase() === code);
+      try {
+        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+        if (storedUsers) usersList = JSON.parse(storedUsers);
+      } catch(e) {}
+
+      const partner = usersList.find(u => u.pairCode && u.pairCode.trim().toUpperCase() === code);
       if (!partner) {
         alert("Không tìm thấy tài khoản nào có mã " + code + "! Hãy kiểm tra lại nha!");
         return;
@@ -7268,15 +7321,20 @@
       const sumLabel = document.getElementById('trend7DaysSum');
       if (!container) return;
 
-      const days7 = [
-        { key: '04/10', name: 'T7' },
-        { key: '05/10', name: 'CN' },
-        { key: '06/10', name: 'T2' },
-        { key: '07/10', name: 'T3' },
-        { key: '08/10', name: 'T4' },
-        { key: '09/10', name: 'T5' },
-        { key: '10/10', name: 'Hôm nay' }
-      ];
+      const now = new Date();
+      const todayInfo = getTodayInfo();
+      const todayKey = todayInfo.key;
+      const dayOfWeekNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+      const days7 = [];
+      for (let offset = -6; offset <= 0; offset++) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+        const dStr = String(d.getDate()).padStart(2, '0');
+        const mStr = String(d.getMonth() + 1).padStart(2, '0');
+        const k = `${dStr}/${mStr}`;
+        const name = (offset === 0) ? 'Hôm nay' : dayOfWeekNames[d.getDay()];
+        days7.push({ key: k, name: name });
+      }
 
       let maxExp = 1;
       let total7Days = 0;
@@ -7291,7 +7349,7 @@
 
       let html = '';
       dayData.forEach((d) => {
-        const isToday = (d.key === '10/10');
+        const isToday = (d.key === todayKey);
         const heightPct = Math.max(12, Math.round((d.expense / maxExp) * 100));
         const activeClass = (d.key === selectedDateKey) ? 'active' : '';
 
@@ -7600,41 +7658,57 @@
         return;
       }
 
-      // 1. Thử gọi API server
+      // Luôn tải lại usersList từ localStorage để dữ liệu luôn mới nhất
       try {
-        const resp = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: usernameVal, pass: passVal })
-        });
-        if (resp.ok) {
-          const res = await resp.json();
-          if (res.ok) {
-            currentUser = res.user;
-            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-            finishAuthSuccess(currentUser, false);
-            return;
-          } else {
-            playSfx('pop');
-            alert(res.error || "Sai tài khoản hoặc mật khẩu!");
-            return;
-          }
-        }
+        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+        if (storedUsers) usersList = JSON.parse(storedUsers);
       } catch(e) {}
 
-      // 2. Fallback tìm tài khoản trong usersList
+      const isBackendServer = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+      // 1. Thử gọi API nếu có backend localhost
+      if (isBackendServer) {
+        try {
+          const resp = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: usernameVal, pass: passVal })
+          });
+          if (resp.ok) {
+            const res = await resp.json();
+            if (res.ok) {
+              currentUser = res.user;
+              localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+              finishAuthSuccess(currentUser, false);
+              return;
+            } else {
+              playSfx('pop');
+              alert(res.error || "Sai tài khoản hoặc mật khẩu!");
+              return;
+            }
+          }
+        } catch(e) {}
+      }
+
+      // 2. Tìm tài khoản trong usersList trên thiết bị (tìm theo email, sđt hoặc tên hiển thị)
+      const searchTarget = usernameVal.toLowerCase();
       const found = usersList.find(u => 
-        (u.username.toLowerCase() === usernameVal.toLowerCase() || u.name.toLowerCase() === usernameVal.toLowerCase()) && 
-        u.pass === passVal
+        (u.username && u.username.toLowerCase() === searchTarget) || 
+        (u.name && u.name.toLowerCase() === searchTarget)
       );
 
       if (found) {
-        currentUser = found;
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-        finishAuthSuccess(currentUser, false);
+        if (found.pass === passVal) {
+          currentUser = found;
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+          finishAuthSuccess(currentUser, false);
+        } else {
+          playSfx('pop');
+          alert("Sai mật khẩu rồi sen ơi! Kiểm tra lại nha! 😾");
+        }
       } else {
         playSfx('pop');
-        alert("Sai tài khoản hoặc mật khẩu rồi sen ơi! Thử lại nha! 😾");
+        alert("Chưa tìm thấy tài khoản '" + usernameVal + "'! Bạn hãy bấm tab 'Đăng Ký Mới' để tạo tài khoản trước nha sen! 🐾");
       }
     }
 
@@ -7644,41 +7718,57 @@
       const pass = document.getElementById('inpRegPass').value.trim();
 
       if (!name || !email || !pass) {
-        alert("Điền đủ tên, email và mật khẩu giùm Kuromi cái!");
+        alert("Điền đủ tên, tên đăng nhập và mật khẩu giùm Kuromi cái!");
         return;
       }
-      if (pass.length < 6) {
-        alert("Mật khẩu ít nhất 6 ký tự để bảo vệ bí mật ví tiền nha!");
+      if (pass.length < 4) {
+        alert("Mật khẩu ít nhất 4 ký tự để bảo vệ bí mật ví tiền nha!");
         return;
       }
 
-      // 1. Thử gọi API server
+      // Luôn tải lại usersList từ localStorage để kiểm tra trùng lặp chính xác
       try {
-        const resp = await fetch('/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: email, name: name, pass: pass })
-        });
-        if (resp.ok) {
-          const res = await resp.json();
-          if (res.ok) {
-            currentUser = res.user;
-            usersList.push(currentUser);
-            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
-            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-            finishAuthSuccess(currentUser, true);
-            return;
-          } else {
-            alert(res.error || "Lỗi đăng ký tài khoản!");
-            return;
-          }
-        }
+        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+        if (storedUsers) usersList = JSON.parse(storedUsers);
       } catch(e) {}
 
-      // 2. Fallback lưu local
-      const exists = usersList.find(u => u.username.toLowerCase() === email.toLowerCase());
+      const isBackendServer = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+      // 1. Thử gọi API nếu có backend localhost
+      if (isBackendServer) {
+        try {
+          const resp = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: email, name: name, pass: pass })
+          });
+          if (resp.ok) {
+            const res = await resp.json();
+            if (res.ok) {
+              currentUser = res.user;
+              const existIdx = usersList.findIndex(u => u.username && u.username.toLowerCase() === email.toLowerCase());
+              if (existIdx >= 0) usersList[existIdx] = currentUser;
+              else usersList.push(currentUser);
+
+              localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
+              localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+              finishAuthSuccess(currentUser, true);
+              return;
+            } else {
+              alert(res.error || "Lỗi đăng ký tài khoản!");
+              return;
+            }
+          }
+        } catch(e) {}
+      }
+
+      // 2. Lưu tài khoản trực tiếp vào thiết bị (Client-First Storage)
+      const exists = usersList.find(u => 
+        (u.username && u.username.toLowerCase() === email.toLowerCase())
+      );
       if (exists) {
-        alert("Email này đã được đăng ký rồi! Đăng nhập thôi sen ơi!");
+        alert("Tên đăng nhập / Email này đã được đăng ký rồi! Đăng nhập thôi sen ơi!");
+        document.getElementById('inpLoginUser').value = email;
         switchAuthTab('login');
         return;
       }
