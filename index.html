@@ -3931,18 +3931,18 @@
         <div id="formLogin">
           <div class="form-group">
             <label class="form-label">Email hoặc Biệt danh</label>
-            <input type="text" id="inpLoginUser" class="form-input" placeholder="Nhập email hoặc tên bạn">
+            <input type="text" id="inpLoginUser" class="form-input" placeholder="Nhập email hoặc tên bạn" autocapitalize="none" autocorrect="off" spellcheck="false">
           </div>
 
           <div class="form-group">
             <label class="form-label">Mật khẩu</label>
             <div style="position:relative;">
-              <input type="password" id="inpLoginPass" class="form-input" placeholder="••••••••" style="padding-right:40px;">
+              <input type="password" id="inpLoginPass" class="form-input" placeholder="••••••••" style="padding-right:40px;" autocapitalize="none" autocorrect="off">
               <span onclick="togglePasswordVisibility('inpLoginPass')" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:14px; color:var(--text-muted);">👁️</span>
             </div>
           </div>
 
-          <button class="btn-save" onclick="handleLoginSubmit()">Đăng Nhập Vào Ví 💖</button>
+          <button class="btn-save" id="btnSubmitLogin" onclick="handleLoginSubmit()">Đăng Nhập Vào Ví 💖</button>
 
           <!-- Quick Guest Access Button -->
           <div style="text-align:center; margin:14px 0 6px; font-size:10px; color:var(--text-muted); font-weight:700;">- HOẶC TRẢI NGHIỆM THỬ -</div>
@@ -3954,23 +3954,23 @@
         <div id="formRegister" style="display:none;">
           <div class="form-group">
             <label class="form-label">Tên của bạn / Biệt danh hiển thị</label>
-            <input type="text" id="inpRegName" class="form-input" placeholder="Ví dụ: Tunn, Bé Heo, Tomat...">
+            <input type="text" id="inpRegName" class="form-input" placeholder="Ví dụ: Tunn, Bé Heo, Tomat..." autocorrect="off">
           </div>
 
           <div class="form-group">
             <label class="form-label">Tên đăng nhập (Email / SĐT / Nickname)</label>
-            <input type="text" id="inpRegEmail" class="form-input" placeholder="Nhập email, SĐT hoặc tên nick">
+            <input type="text" id="inpRegEmail" class="form-input" placeholder="Nhập email, SĐT hoặc tên nick" autocapitalize="none" autocorrect="off" spellcheck="false">
           </div>
 
           <div class="form-group">
             <label class="form-label">Mật khẩu</label>
             <div style="position:relative;">
-              <input type="password" id="inpRegPass" class="form-input" placeholder="Tạo mật khẩu của bạn" style="padding-right:40px;">
+              <input type="password" id="inpRegPass" class="form-input" placeholder="Tạo mật khẩu của bạn" style="padding-right:40px;" autocapitalize="none" autocorrect="off">
               <span onclick="togglePasswordVisibility('inpRegPass')" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:14px; color:var(--text-muted);">👁️</span>
             </div>
           </div>
 
-          <button class="btn-save" onclick="handleRegisterSubmit()">Tạo Tài Khoản & Vào Ví 💖</button>
+          <button class="btn-save" id="btnSubmitRegister" onclick="handleRegisterSubmit()">Tạo Tài Khoản & Vào Ví 💖</button>
 
           <!-- Quick Guest Access Button -->
           <div style="text-align:center; margin:14px 0 6px; font-size:10px; color:var(--text-muted); font-weight:700;">- HOẶC TRẢI NGHIỆM THỬ -</div>
@@ -7874,83 +7874,160 @@
       }
     }
 
+    async function syncLocalUsersToCloud() {
+      try {
+        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+        const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+        let list = [];
+        if (storedUsers) {
+          try { list = JSON.parse(storedUsers); } catch(e) {}
+        }
+        if (storedAuth) {
+          try {
+            const authUser = JSON.parse(storedAuth);
+            if (authUser && authUser.id && authUser.id !== 'guest') {
+              if (!list.some(u => u.id === authUser.id)) list.push(authUser);
+            }
+          } catch(e) {}
+        }
+
+        for (const u of list) {
+          if (u.id && u.username) {
+            const safeEmail = toSafeKey(u.username);
+            const safeName = toSafeKey(u.name);
+            await fetch(`${FIREBASE_DB_URL}/usersList/${u.id}.json`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(u)
+            });
+            await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeEmail}.json`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(u.id)
+            });
+            if (safeName) {
+              await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeName}.json`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(u.id)
+              });
+            }
+            if (u.pairCode) {
+              await fetch(`${FIREBASE_DB_URL}/usersByPairCode/${u.pairCode}.json`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(u.id)
+              });
+            }
+          }
+        }
+      } catch(e) {}
+    }
+
     async function handleLoginSubmit() {
       const usernameVal = document.getElementById('inpLoginUser').value.trim();
       const passVal = document.getElementById('inpLoginPass').value.trim();
+      const btnLogin = document.getElementById('btnSubmitLogin');
 
       if (!usernameVal || !passVal) {
         alert("Nhập đủ tài khoản và mật khẩu giùm Kuromi cái!");
         return;
       }
 
-      const safeTarget = toSafeKey(usernameVal);
-      let foundUser = null;
-
-      // 1. Tìm tài khoản trên Firebase Cloud (Đồng bộ Realtime xuyên thiết bị)
-      try {
-        const lookupRes = await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeTarget}.json`);
-        const foundUid = await lookupRes.json();
-        if (foundUid) {
-          const userRes = await fetch(`${FIREBASE_DB_URL}/usersList/${foundUid}.json`);
-          const cloudUser = await userRes.json();
-          if (cloudUser) {
-            foundUser = cloudUser;
-          }
-        }
-      } catch(e) {}
-
-      // 2. Nếu không tìm thấy trên Cloud (hoặc mất mạng), tìm trong usersList trên thiết bị
-      if (!foundUser) {
-        try {
-          const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-          if (storedUsers) usersList = JSON.parse(storedUsers);
-        } catch(e) {}
-        foundUser = usersList.find(u => 
-          (u.username && u.username.toLowerCase() === usernameVal.toLowerCase()) || 
-          (u.name && u.name.toLowerCase() === usernameVal.toLowerCase())
-        );
+      if (btnLogin) {
+        btnLogin.innerText = 'Đang kiểm tra Cloud... ⏳';
+        btnLogin.disabled = true;
       }
 
-      if (foundUser) {
-        if (foundUser.pass === passVal) {
-          currentUser = foundUser;
-          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+      try {
+        const safeTarget = toSafeKey(usernameVal);
+        let foundUser = null;
 
-          // Đồng bộ tài khoản này vào usersList của thiết bị hiện tại
-          try {
-            const stored = localStorage.getItem(USERS_STORAGE_KEY);
-            const list = stored ? JSON.parse(stored) : [];
-            const idx = list.findIndex(u => u.id === foundUser.id);
-            if (idx >= 0) list[idx] = foundUser;
-            else list.push(foundUser);
-            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(list));
-          } catch(e) {}
+        // 1. Tìm tài khoản trên Firebase Cloud qua Lookup key
+        try {
+          const lookupRes = await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeTarget}.json`);
+          const foundUid = await lookupRes.json();
+          if (foundUid) {
+            const userRes = await fetch(`${FIREBASE_DB_URL}/usersList/${foundUid}.json`);
+            const cloudUser = await userRes.json();
+            if (cloudUser) foundUser = cloudUser;
+          }
+        } catch(e) {}
 
-          // Tải toàn bộ dữ liệu ví của tài khoản từ Cloud về thiết bị này
+        // 2. Quét toàn bộ danh sách usersList trên Firebase Cloud (đảm bảo 100% không sót)
+        if (!foundUser) {
           try {
-            const dataUrl = foundUser.coupleId 
-              ? `${FIREBASE_DB_URL}/coupleData/${foundUser.coupleId}.json`
-              : `${FIREBASE_DB_URL}/userData/${foundUser.id}.json`;
-            const dataRes = await fetch(dataUrl);
-            const cloudData = await dataRes.json();
-            if (cloudData && cloudData.appData) {
-              appData = cloudData.appData;
-              if (cloudData.kuroPots) kuroPots = cloudData.kuroPots;
-              const dataKey = getStorageKeyForAppData();
-              try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
-              const potKey = getStorageKeyForPots();
-              try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
+            const allRes = await fetch(`${FIREBASE_DB_URL}/usersList.json`);
+            const allUsersObj = await allRes.json();
+            if (allUsersObj) {
+              const list = Object.values(allUsersObj);
+              const uMatch = list.find(u => 
+                (u.username && u.username.toLowerCase().trim() === usernameVal.toLowerCase()) || 
+                (u.name && u.name.toLowerCase().trim() === usernameVal.toLowerCase())
+              );
+              if (uMatch) foundUser = uMatch;
             }
           } catch(e) {}
+        }
 
-          finishAuthSuccess(currentUser, false);
+        // 3. Fallback tìm trong usersList trên thiết bị
+        if (!foundUser) {
+          try {
+            const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+            if (storedUsers) usersList = JSON.parse(storedUsers);
+          } catch(e) {}
+          foundUser = usersList.find(u => 
+            (u.username && u.username.toLowerCase() === usernameVal.toLowerCase()) || 
+            (u.name && u.name.toLowerCase() === usernameVal.toLowerCase())
+          );
+        }
+
+        if (foundUser) {
+          if (foundUser.pass === passVal) {
+            currentUser = foundUser;
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+
+            // Đồng bộ tài khoản này vào usersList của thiết bị hiện tại
+            try {
+              const stored = localStorage.getItem(USERS_STORAGE_KEY);
+              const list = stored ? JSON.parse(stored) : [];
+              const idx = list.findIndex(u => u.id === foundUser.id);
+              if (idx >= 0) list[idx] = foundUser;
+              else list.push(foundUser);
+              localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(list));
+            } catch(e) {}
+
+            // Tải toàn bộ dữ liệu ví của tài khoản từ Cloud về thiết bị này
+            try {
+              const dataUrl = foundUser.coupleId 
+                ? `${FIREBASE_DB_URL}/coupleData/${foundUser.coupleId}.json`
+                : `${FIREBASE_DB_URL}/userData/${foundUser.id}.json`;
+              const dataRes = await fetch(dataUrl);
+              const cloudData = await dataRes.json();
+              if (cloudData && cloudData.appData) {
+                appData = cloudData.appData;
+                if (cloudData.kuroPots) kuroPots = cloudData.kuroPots;
+                const dataKey = getStorageKeyForAppData();
+                try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
+                const potKey = getStorageKeyForPots();
+                try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
+              }
+            } catch(e) {}
+
+            finishAuthSuccess(currentUser, false);
+          } else {
+            playSfx('pop');
+            alert("Sai mật khẩu rồi sen ơi! Kiểm tra lại nha! 😾");
+          }
         } else {
           playSfx('pop');
-          alert("Sai mật khẩu rồi sen ơi! Kiểm tra lại nha! 😾");
+          alert("Chưa tìm thấy tài khoản '" + usernameVal + "'! Hãy bấm tab '✨ Đăng Ký Mới' để tạo tài khoản trong 5 giây nha sen! 🐾");
         }
-      } else {
-        playSfx('pop');
-        alert("Chưa tìm thấy tài khoản '" + usernameVal + "'! Bạn hãy bấm tab 'Đăng Ký Mới' để tạo tài khoản trước nha sen! 🐾");
+      } finally {
+        if (btnLogin) {
+          btnLogin.innerText = 'Đăng Nhập Vào Ví 💖';
+          btnLogin.disabled = false;
+        }
       }
     }
 
@@ -7958,6 +8035,7 @@
       const name = document.getElementById('inpRegName').value.trim();
       const email = document.getElementById('inpRegEmail').value.trim();
       const pass = document.getElementById('inpRegPass').value.trim();
+      const btnReg = document.getElementById('btnSubmitRegister');
 
       if (!name || !email || !pass) {
         alert("Điền đủ tên, tên đăng nhập và mật khẩu giùm Kuromi cái!");
@@ -7968,70 +8046,82 @@
         return;
       }
 
-      const safeEmail = toSafeKey(email);
-      const safeName = toSafeKey(name);
+      if (btnReg) {
+        btnReg.innerText = 'Đang tạo tài khoản Cloud... ⏳';
+        btnReg.disabled = true;
+      }
 
-      // 1. Kiểm tra tài khoản trên Firebase Cloud
       try {
-        const checkRes = await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeEmail}.json`);
-        const existingUid = await checkRes.json();
-        if (existingUid) {
-          alert("Tên đăng nhập / Email này đã tồn tại trên Cloud! Hãy bấm Đăng nhập nha sen!");
-          document.getElementById('inpLoginUser').value = email;
-          switchAuthTab('login');
-          return;
+        const safeEmail = toSafeKey(email);
+        const safeName = toSafeKey(name);
+
+        // 1. Kiểm tra tài khoản trên Firebase Cloud
+        try {
+          const checkRes = await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeEmail}.json`);
+          const existingUid = await checkRes.json();
+          if (existingUid) {
+            alert("Tên đăng nhập / Email này đã tồn tại trên Cloud! Hãy bấm Đăng nhập nha sen!");
+            document.getElementById('inpLoginUser').value = email;
+            switchAuthTab('login');
+            return;
+          }
+        } catch(e) {}
+
+        // 2. Tạo tài khoản mới
+        const randPairCode = 'KURO-' + Math.floor(100000 + Math.random() * 900000);
+        const newUser = {
+          id: 'user_' + Date.now(),
+          username: email,
+          name: name,
+          pairCode: randPairCode,
+          coupleId: null,
+          partnerName: null,
+          pass: pass,
+          avatar: name.charAt(0).toUpperCase(),
+          createdAt: Date.now()
+        };
+
+        // 3. Lưu lên Firebase Cloud Realtime
+        try {
+          await fetch(`${FIREBASE_DB_URL}/usersList/${newUser.id}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newUser)
+          });
+          await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeEmail}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newUser.id)
+          });
+          await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeName}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newUser.id)
+          });
+          await fetch(`${FIREBASE_DB_URL}/usersByPairCode/${newUser.pairCode}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newUser.id)
+          });
+        } catch(e) {}
+
+        // 4. Lưu cục bộ an toàn trên thiết bị này
+        try {
+          const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+          if (storedUsers) usersList = JSON.parse(storedUsers);
+        } catch(e) {}
+        usersList.push(newUser);
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
+
+        currentUser = newUser;
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+        finishAuthSuccess(currentUser, true);
+      } finally {
+        if (btnReg) {
+          btnReg.innerText = 'Tạo Tài Khoản & Vào Ví 💖';
+          btnReg.disabled = false;
         }
-      } catch(e) {}
-
-      // 2. Tạo tài khoản mới
-      const randPairCode = 'KURO-' + Math.floor(100000 + Math.random() * 900000);
-      const newUser = {
-        id: 'user_' + Date.now(),
-        username: email,
-        name: name,
-        pairCode: randPairCode,
-        coupleId: null,
-        partnerName: null,
-        pass: pass,
-        avatar: name.charAt(0).toUpperCase(),
-        createdAt: Date.now()
-      };
-
-      // 3. Lưu lên Firebase Cloud Realtime
-      try {
-        await fetch(`${FIREBASE_DB_URL}/usersList/${newUser.id}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newUser)
-        });
-        await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeEmail}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newUser.id)
-        });
-        await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeName}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newUser.id)
-        });
-        await fetch(`${FIREBASE_DB_URL}/usersByPairCode/${newUser.pairCode}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newUser.id)
-        });
-      } catch(e) {}
-
-      // 4. Lưu cục bộ an toàn trên thiết bị này
-      try {
-        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-        if (storedUsers) usersList = JSON.parse(storedUsers);
-      } catch(e) {}
-      usersList.push(newUser);
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
-
-      currentUser = newUser;
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-      finishAuthSuccess(currentUser, true);
+      }
     }
 
     function finishAuthSuccess(user, isNew) {
