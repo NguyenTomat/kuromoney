@@ -5393,6 +5393,29 @@
               lastRemoteUpdateTimestamp = remote.updatedAt;
               const isPartnerUpdate = (remote.updatedBy && remote.updatedBy !== currentUser.name);
               const decodedRemote = decodeAppDataFromFirebase(remote.appData, remote.appDataJson);
+
+              // Tìm chính xác giao dịch mới do máy đối phương vừa thêm
+              const newPartnerTxs = [];
+              if (decodedRemote && typeof decodedRemote === 'object') {
+                Object.keys(decodedRemote).forEach(dateK => {
+                  const rDay = decodedRemote[dateK];
+                  if (rDay && Array.isArray(rDay.txs)) {
+                    const localDay = appData[dateK];
+                    const localTxMap = new Map();
+                    if (localDay && Array.isArray(localDay.txs)) {
+                      localDay.txs.forEach(t => localTxMap.set(t.id, t));
+                    }
+                    rDay.txs.forEach(rtx => {
+                      if (!rtx.isDeleted && !localTxMap.has(rtx.id)) {
+                        if (!rtx.createdAt || (Date.now() - rtx.createdAt < 300000)) {
+                          newPartnerTxs.push(rtx);
+                        }
+                      }
+                    });
+                  }
+                });
+              }
+
               if (decodedRemote && Object.keys(decodedRemote).length > 0) {
                 appData = mergeAppData(appData, decodedRemote);
               }
@@ -5402,9 +5425,20 @@
               const potKey = getStorageKeyForPots();
               try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
               loadUserDatabase(true);
-              if (prevTs > 0 && isPartnerUpdate) {
+
+              // Phát chuông Kuromi & hiện Dynamic Island trên máy nhận
+              if (prevTs > 0 && newPartnerTxs.length > 0) {
+                const latestTx = newPartnerTxs[newPartnerTxs.length - 1];
+                const sign = latestTx.isIncome ? '+' : '-';
+                const payer = latestTx.who || remote.updatedBy || 'Người ấy';
                 sendAppNotification(
-                  `🎀 ${remote.updatedBy} Vừa Chi Tiêu 💸`,
+                  `🎀 ${payer} Vừa ${latestTx.isIncome ? 'Nạp Tiền' : 'Chi Tiêu'} 💸`,
+                  `<strong>${payer}</strong> vừa thêm: <strong>${sign}${latestTx.amount}đ</strong> ("${latestTx.title}")!`,
+                  { tag: 'VÍ CHUNG' }
+                );
+              } else if (prevTs > 0 && isPartnerUpdate) {
+                sendAppNotification(
+                  `🎀 ${remote.updatedBy} Vừa Cập Nhật Ví 💸`,
                   `<strong>${remote.updatedBy}</strong> vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`,
                   { tag: 'VÍ CHUNG' }
                 );
@@ -5447,6 +5481,29 @@
             lastRemoteUpdateTimestamp = remoteData.updatedAt;
             const isPartnerUpdate = (remoteData.updatedBy && remoteData.updatedBy !== currentUser.name);
             const decodedRemote = decodeAppDataFromFirebase(remoteData.appData, remoteData.appDataJson);
+
+            // Tìm chính xác giao dịch mới do máy đối phương vừa thêm qua polling
+            const newPartnerTxs = [];
+            if (decodedRemote && typeof decodedRemote === 'object') {
+              Object.keys(decodedRemote).forEach(dateK => {
+                const rDay = decodedRemote[dateK];
+                if (rDay && Array.isArray(rDay.txs)) {
+                  const localDay = appData[dateK];
+                  const localTxMap = new Map();
+                  if (localDay && Array.isArray(localDay.txs)) {
+                    localDay.txs.forEach(t => localTxMap.set(t.id, t));
+                  }
+                  rDay.txs.forEach(rtx => {
+                    if (!rtx.isDeleted && !localTxMap.has(rtx.id)) {
+                      if (!rtx.createdAt || (Date.now() - rtx.createdAt < 300000)) {
+                        newPartnerTxs.push(rtx);
+                      }
+                    }
+                  });
+                }
+              });
+            }
+
             if (decodedRemote && Object.keys(decodedRemote).length > 0) {
               appData = mergeAppData(appData, decodedRemote);
             }
@@ -5456,9 +5513,19 @@
             const potKey = getStorageKeyForPots();
             try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
             loadUserDatabase(true);
-            if (prevTs > 0 && isPartnerUpdate) {
+
+            if (prevTs > 0 && newPartnerTxs.length > 0) {
+              const latestTx = newPartnerTxs[newPartnerTxs.length - 1];
+              const sign = latestTx.isIncome ? '+' : '-';
+              const payer = latestTx.who || remoteData.updatedBy || 'Người ấy';
               sendAppNotification(
-                `🎀 ${remoteData.updatedBy} Vừa Chi Tiêu 💸`,
+                `🎀 ${payer} Vừa ${latestTx.isIncome ? 'Nạp Tiền' : 'Chi Tiêu'} 💸`,
+                `<strong>${payer}</strong> vừa thêm: <strong>${sign}${latestTx.amount}đ</strong> ("${latestTx.title}")!`,
+                { tag: 'VÍ CHUNG' }
+              );
+            } else if (prevTs > 0 && isPartnerUpdate) {
+              sendAppNotification(
+                `🎀 ${remoteData.updatedBy} Vừa Cập Nhật Ví 💸`,
                 `<strong>${remoteData.updatedBy}</strong> vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`,
                 { tag: 'VÍ CHUNG' }
               );
