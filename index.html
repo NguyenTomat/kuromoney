@@ -5058,6 +5058,73 @@
       pushSyncToServer();
     }
 
+    function encodeAppDataForFirebase(data) {
+      if (!data) return {};
+      const out = {};
+      Object.keys(data).forEach(k => {
+        const safeK = k.replace(/\//g, '_');
+        out[safeK] = data[k];
+      });
+      return out;
+    }
+
+    function decodeAppDataFromFirebase(remote, remoteJson) {
+      if (remoteJson && typeof remoteJson === 'string') {
+        try {
+          const parsed = JSON.parse(remoteJson);
+          if (parsed && typeof parsed === 'object') return parsed;
+        } catch(e) {}
+      }
+      if (!remote) return {};
+      if (typeof remote === 'string') {
+        try { return JSON.parse(remote); } catch(e) { return {}; }
+      }
+      const out = {};
+      Object.keys(remote).forEach(k => {
+        const normK = k.replace(/_/g, '/');
+        out[normK] = remote[k];
+      });
+      return out;
+    }
+
+    function mergeAppData(local, remote) {
+      if (!remote) return local || {};
+      if (!local) return remote || {};
+      const merged = Object.assign({}, local);
+
+      Object.keys(remote).forEach(dKey => {
+        if (!merged[dKey]) {
+          merged[dKey] = remote[dKey];
+        } else {
+          const lTxs = Array.isArray(merged[dKey].txs) ? merged[dKey].txs : [];
+          const rTxs = Array.isArray(remote[dKey].txs) ? remote[dKey].txs : [];
+          const map = new Map();
+
+          // Thêm các giao dịch cục bộ
+          lTxs.forEach((t) => {
+            const key = t.id || `${t.title}_${t.amount}_${t.time}_${t.who}`;
+            map.set(key, t);
+          });
+
+          // Hợp nhất các giao dịch từ xa của đối phương
+          rTxs.forEach((t) => {
+            const key = t.id || `${t.title}_${t.amount}_${t.time}_${t.who}`;
+            if (!map.has(key)) {
+              map.set(key, t);
+            } else {
+              const existing = map.get(key);
+              if (t.isDeleted) existing.isDeleted = true;
+            }
+          });
+
+          const allTxs = Array.from(map.values());
+          allTxs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          merged[dKey].txs = allTxs;
+        }
+      });
+      return merged;
+    }
+
     let syncDebounceTimer = null;
     function pushSyncToServer() {
       if (!currentUser || currentUser.id === 'guest') return;
@@ -5069,32 +5136,52 @@
 
       clearTimeout(syncDebounceTimer);
       syncDebounceTimer = setTimeout(async () => {
-        const payload = {
-          userId: currentUser.id,
-          userName: currentUser.name,
-          mode: currentWalletMode,
-          appData: appData,
-          kuroPots: kuroPots,
-          updatedBy: currentUser.name,
-          updatedAt: Date.now()
-        };
-
-        // 1. Đồng bộ lên Firebase Cloud Database
         try {
+          // Nếu đã ghép đôi: lấy dữ liệu ví chung trên Firebase để trộn trước khi ghi, chống ghi đè giao dịch của nhau!
           if (currentUser.coupleId) {
-            // Khi đã ghép đôi: LƯU TRỰC TIẾP LÊN VÍ CHUNG CỦA 2 ĐỨA
-            await fetch(`${FIREBASE_DB_URL}/coupleData/${currentUser.coupleId}.json`, {
+            try {
+              const fetchRes = await fetch(`${FIREBASE_DB_URL}/coupleData/${currentUser.coupleId}.json`);
+              const remoteCouple = await fetchRes.json();
+              if (remoteCouple) {
+                const decodedRemote = decodeAppDataFromFirebase(remoteCouple.appData, remoteCouple.appDataJson);
+                if (decodedRemote && Object.keys(decodedRemote).length > 0) {
+                  appData = mergeAppData(appData, decodedRemote);
+                  const dataKey = getStorageKeyForAppData();
+                  try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
+                }
+              }
+            } catch(e) {}
+          }
+
+          const payload = {
+            userId: currentUser.id,
+            userName: currentUser.name,
+            mode: currentWalletMode,
+            appData: encodeAppDataForFirebase(appData),
+            appDataJson: JSON.stringify(appData),
+            kuroPots: kuroPots,
+            updatedBy: currentUser.name,
+            updatedAt: Date.now()
+          };
+
+          // 1. Đồng bộ lên Firebase Cloud Database
+          let saveOk = false;
+          if (currentUser.coupleId) {
+            const cRes = await fetch(`${FIREBASE_DB_URL}/coupleData/${currentUser.coupleId}.json`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             });
+            if (cRes.ok) saveOk = true;
           }
-          await fetch(`${FIREBASE_DB_URL}/userData/${currentUser.id}.json`, {
+          const uRes = await fetch(`${FIREBASE_DB_URL}/userData/${currentUser.id}.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          if (statusBadge) {
+          if (uRes.ok) saveOk = true;
+
+          if (saveOk && statusBadge) {
             statusBadge.innerText = '● Đã lưu Cloud Firebase 💖';
             statusBadge.style.color = '#10B981';
           }
@@ -5111,7 +5198,7 @@
             await fetch('/api/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
+              body: JSON.stringify({ ...payload, appData: appData })
             });
           } catch(e) {}
         }
@@ -5129,16 +5216,21 @@
         try {
           kuroFirebaseDb.ref('coupleData/' + currentUser.coupleId).on('value', snapshot => {
             const remote = snapshot.val();
-            if (remote && remote.updatedAt && remote.updatedAt > lastRemoteUpdateTimestamp && remote.updatedBy !== currentUser.name) {
+            if (remote && remote.updatedAt && remote.updatedAt > lastRemoteUpdateTimestamp) {
+              const prevTs = lastRemoteUpdateTimestamp;
               lastRemoteUpdateTimestamp = remote.updatedAt;
-              if (remote.appData) appData = remote.appData;
+              const isPartnerUpdate = (remote.updatedBy && remote.updatedBy !== currentUser.name);
+              const decodedRemote = decodeAppDataFromFirebase(remote.appData, remote.appDataJson);
+              if (decodedRemote && Object.keys(decodedRemote).length > 0) {
+                appData = mergeAppData(appData, decodedRemote);
+              }
               if (remote.kuroPots) kuroPots = remote.kuroPots;
               const dataKey = getStorageKeyForAppData();
               try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
               const potKey = getStorageKeyForPots();
               try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
               loadUserDatabase(true);
-              if (typeof showChibiWithAlert === 'function') {
+              if (prevTs > 0 && isPartnerUpdate && typeof showChibiWithAlert === 'function') {
                 showChibiWithAlert(`🎀 ${remote.updatedBy} vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`);
               }
             }
@@ -5171,16 +5263,24 @@
 
         const dataRes = await fetch(targetUrl);
         const remoteData = await dataRes.json();
-        if (remoteData && remoteData.appData) {
-          if (remoteData.updatedAt && remoteData.updatedAt > lastRemoteUpdateTimestamp && remoteData.updatedBy !== currentUser.name) {
+        if (remoteData) {
+          if (remoteData.updatedAt && remoteData.updatedAt > lastRemoteUpdateTimestamp) {
+            const prevTs = lastRemoteUpdateTimestamp;
             lastRemoteUpdateTimestamp = remoteData.updatedAt;
-            appData = remoteData.appData;
+            const isPartnerUpdate = (remoteData.updatedBy && remoteData.updatedBy !== currentUser.name);
+            const decodedRemote = decodeAppDataFromFirebase(remoteData.appData, remoteData.appDataJson);
+            if (decodedRemote && Object.keys(decodedRemote).length > 0) {
+              appData = mergeAppData(appData, decodedRemote);
+            }
             if (remoteData.kuroPots) kuroPots = remoteData.kuroPots;
             const dataKey = getStorageKeyForAppData();
             try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
             const potKey = getStorageKeyForPots();
             try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
             loadUserDatabase(true);
+            if (prevTs > 0 && isPartnerUpdate && typeof showChibiWithAlert === 'function') {
+              showChibiWithAlert(`🎀 ${remoteData.updatedBy} vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`);
+            }
           }
         }
       } catch(e) {}
@@ -5243,6 +5343,7 @@
       if (!day || !day.txs) return { income: 0, expense: 0, net: 0 };
       let inc = 0, exp = 0;
       day.txs.forEach(t => {
+        if (t.isDeleted) return;
         const num = parseAmountNum(t.amount);
         if (t.isIncome) inc += num;
         else exp += num;
@@ -5398,6 +5499,7 @@
       const partnerName = (typeof userProfile !== 'undefined' && userProfile.partnerName) ? userProfile.partnerName : 'Người ấy';
 
       let filtered = day.txs.filter(t => {
+        if (t.isDeleted) return false;
         if (currentFilterWhoOrType === 'me' && t.who !== meName && t.who !== 'Tôi' && t.who !== 'Vũ' && t.who !== 'Vu') return false;
         if (currentFilterWhoOrType === 'partner' && t.who !== partnerName && t.who !== 'Người ấy' && t.who !== 'Em') return false;
         if (currentFilterWhoOrType === 'expense' && t.isIncome) return false;
@@ -5439,7 +5541,7 @@
         const billBadge = t.billImage ? `<span class="tx-bill-badge" onclick="viewBillModal(${idx}, event)">🧾 Xem Bill</span>` : '';
 
         html += `
-          <div class="tx-item" onclick="openEditModal(${idx})">
+          <div class="tx-item" onclick="openEditModal('${t.id || idx}')">
             <div class="tx-left">
               <div class="tx-cat-icon" style="background:${iconBg}; border-color:${iconBorder};">
                 ${t.icon || '💸'}
@@ -5771,10 +5873,18 @@
       setTimeout(() => triggerBillUpload(), 300);
     }
 
-    function openEditModal(idx) {
+    function openEditModal(idOrIdx) {
       if (typeof checkAuthRequired === 'function' && !checkAuthRequired('chỉnh sửa giao dịch')) return;
-      currentEditIdx = idx;
-      const tx = appData[selectedDateKey].txs[idx];
+      const txs = (appData[selectedDateKey] && appData[selectedDateKey].txs) ? appData[selectedDateKey].txs : [];
+      let tx = null;
+      if (typeof idOrIdx === 'string') {
+        currentEditIdx = txs.findIndex(t => t.id === idOrIdx);
+        if (currentEditIdx >= 0) tx = txs[currentEditIdx];
+      }
+      if (!tx) {
+        currentEditIdx = (typeof idOrIdx === 'number') ? idOrIdx : parseInt(idOrIdx, 10);
+        if (currentEditIdx >= 0 && txs[currentEditIdx]) tx = txs[currentEditIdx];
+      }
       if (!tx) return;
 
       document.getElementById('modalTitle').innerText = '✏️ Chỉnh Sửa Giao Dịch';
@@ -5848,6 +5958,7 @@
       let catPill = aiMatch ? aiMatch.pill : (isInc ? 'Tiền vào (+)' : 'Chi tiêu');
 
       const newTx = {
+        id: 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
         title: titleVal,
         amount: amountVal,
         time: timeStr,
@@ -5858,10 +5969,13 @@
         isIncome: isInc,
         icon: icon,
         note: noteVal,
-        billImage: currentUploadedBill
+        billImage: currentUploadedBill,
+        createdAt: Date.now()
       };
 
       if (currentEditIdx >= 0) {
+        const oldId = appData[selectedDateKey].txs[currentEditIdx].id;
+        if (oldId) newTx.id = oldId;
         appData[selectedDateKey].txs[currentEditIdx] = newTx;
       } else {
         appData[selectedDateKey].txs.unshift(newTx);
@@ -5901,7 +6015,10 @@
       if (currentEditIdx < 0) return;
       const confirmed = confirm("Bạn có chắc chắn muốn xóa khoản giao dịch này không?");
       if (confirmed) {
-        appData[selectedDateKey].txs.splice(currentEditIdx, 1);
+        if (appData[selectedDateKey] && appData[selectedDateKey].txs[currentEditIdx]) {
+          appData[selectedDateKey].txs[currentEditIdx].isDeleted = true;
+          appData[selectedDateKey].txs[currentEditIdx].deletedAt = Date.now();
+        }
         saveDatabase();
         selectDateByKey(selectedDateKey);
         closeModal();
@@ -6985,11 +7102,13 @@
           existingCouple = await cCheck.json();
         } catch(e) {}
 
-        const finalAppData = (existingCouple && existingCouple.appData) ? existingCouple.appData : appData;
+        const decodedExisting = existingCouple ? decodeAppDataFromFirebase(existingCouple.appData, existingCouple.appDataJson) : null;
+        const finalAppData = (decodedExisting && Object.keys(decodedExisting).length > 0) ? mergeAppData(appData, decodedExisting) : appData;
         const finalPots = (existingCouple && existingCouple.kuroPots) ? existingCouple.kuroPots : kuroPots;
 
         const initCoupleData = {
-          appData: finalAppData,
+          appData: encodeAppDataForFirebase(finalAppData),
+          appDataJson: JSON.stringify(finalAppData),
           kuroPots: finalPots,
           coupleId: coupleId,
           updatedBy: currentUser.name,
@@ -7002,6 +7121,10 @@
         });
         appData = finalAppData;
         kuroPots = finalPots;
+        const cDataKey = getStorageKeyForAppData();
+        try { localStorage.setItem(cDataKey, JSON.stringify(appData)); } catch(e) {}
+        const cPotKey = getStorageKeyForPots();
+        try { localStorage.setItem(cPotKey, JSON.stringify(kuroPots)); } catch(e) {}
       } catch(e) {}
 
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
@@ -7158,6 +7281,7 @@
         const day = appData[k];
         if (day && day.txs) {
           day.txs.forEach(t => {
+            if (!t || t.isDeleted) return;
             const num = parseAmountNum(t.amount);
             if (t.isIncome) {
               totalIncome += num;
@@ -7293,6 +7417,7 @@
         const day = appData[k];
         if (day && day.txs) {
           day.txs.forEach(t => {
+            if (!t || t.isDeleted) return;
             if (!t.isIncome) {
               const num = parseAmountNum(t.amount);
               if (num > 0) {
@@ -8044,8 +8169,11 @@
                 : `${FIREBASE_DB_URL}/userData/${foundUser.id}.json`;
               const dataRes = await fetch(dataUrl);
               const cloudData = await dataRes.json();
-              if (cloudData && cloudData.appData) {
-                appData = cloudData.appData;
+              if (cloudData) {
+                const decodedCloud = decodeAppDataFromFirebase(cloudData.appData, cloudData.appDataJson);
+                if (decodedCloud && Object.keys(decodedCloud).length > 0) {
+                  appData = decodedCloud;
+                }
                 if (cloudData.kuroPots) kuroPots = cloudData.kuroPots;
                 const dataKey = getStorageKeyForAppData();
                 try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
