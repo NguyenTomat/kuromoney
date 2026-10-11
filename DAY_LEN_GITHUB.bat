@@ -1,19 +1,14 @@
 @echo off
-chcp 65001 > nul
-title Day KuroMoney Len GitHub - NguyenTomat/kuromoney
+cls
 echo ========================================================
-echo   💜 ĐANG ĐẨY CODE LÊN GITHUB: NguyenTomat/kuromoney 💜
+echo   DAY CODE KUROMONEY LEN GITHUB: NguyenTomat/kuromoney
 echo ========================================================
 echo.
-echo Nhan phim bat ky de day code...
-git push -u origin main
+echo Dang dong bo va day toan bo code len GitHub...
+git push -u origin main --force
 echo.
 echo ========================================================
-echo Neu hien 'Everything up-to-date' hoac thanh cong:
-echo 1. Vao trang: https://github.com/NguyenTomat/kuromoney/settings/pages
-echo 2. Tai muc 'Branch', chon 'main' roi bam 'Save'!
-echo.
-echo Link Web online 24/7 tren dien thoai cua ban se la:
-echo 👉 https://nguyentomat.github.io/kuromoney/
+echo THANH CONG! Web GitHub Pages se tu dong cap nhat tai:
+echo https://nguyentomat.github.io/kuromoney/
 echo ========================================================
 pause
