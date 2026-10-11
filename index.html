@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>KuroMoney - Quản Lý Chi Tiêu Pastel Kuromi</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="KuroMoney">
   <meta name="theme-color" content="#2E1065">
@@ -2795,6 +2796,8 @@
           <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
         </div>
       </div>
+    </div>
+
     <!-- Banner Cảnh báo Chế độ Khách (Chỉ nghịch Chibi, chạm để đăng nhập) -->
     <div class="guest-banner-box" id="guestBanner" style="display:none; margin: 4px 18px 8px; background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); border: 1.5px dashed #F59E0B; border-radius: 16px; padding: 8px 12px; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.18); cursor: pointer;" onclick="openAuthModal()">
       <div style="display:flex; align-items:center; gap:8px;">
@@ -3994,7 +3997,31 @@
   </div>
 
   <script>
-    lucide.createIcons();
+    // Polyfill an toàn chống Tracking Prevention chặn Storage trong trình duyệt
+    (function initSafeStorage() {
+      try {
+        const testKey = '__kuro_test__';
+        window.localStorage.setItem(testKey, '1');
+        window.localStorage.removeItem(testKey);
+      } catch (err) {
+        console.warn('Storage blocked by tracking prevention, enabling memory fallback');
+        const mem = {};
+        try {
+          Object.defineProperty(window, 'localStorage', {
+            value: {
+              getItem: (k) => (k in mem ? mem[k] : null),
+              setItem: (k, v) => { mem[k] = String(v); },
+              removeItem: (k) => { delete mem[k]; },
+              clear: () => { for (const k in mem) delete mem[k]; }
+            },
+            configurable: true,
+            writable: true
+          });
+        } catch(e) {}
+      }
+    })();
+
+    if (window.lucide) lucide.createIcons();
 
     // ========================================================
     // ÂM THANH HIỆU ỨNG (WEB AUDIO API PASTEL SFX)
