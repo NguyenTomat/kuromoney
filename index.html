@@ -20,8 +20,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Quicksand:wght@600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@latest"></script>
   
-  <!-- Firebase SDK Compat (Sẵn sàng xuất iOS & Sync Realtime 2 máy) -->
+  <!-- Firebase SDK Compat (Cloud Realtime Database Sync 2 máy & iOS) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
   <!-- Tesseract OCR Engine (Quét Chữ & Đọc Số Tiền Trên Hóa Đơn Thật) -->
@@ -4943,6 +4944,44 @@
     // ========================================================
     // DATABASE & FIREBASE LOCAL / REALTIME SYSTEM (KURO_DB)
     // ========================================================
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBUATNhTRIe_BfhCNCxcw-s0mSRt1AzY-I",
+      authDomain: "kuromoney.firebaseapp.com",
+      databaseURL: "https://kuromoney-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "kuromoney",
+      storageBucket: "kuromoney.firebasestorage.app",
+      messagingSenderId: "862872385086",
+      appId: "1:862872385086:web:25f65936f08f9eff42036f",
+      measurementId: "G-HYF0P215QY"
+    };
+    const FIREBASE_DB_URL = "https://kuromoney-default-rtdb.asia-southeast1.firebasedatabase.app";
+
+    let kuroFirebaseApp = null;
+    let kuroFirebaseDb = null;
+
+    function initFirebaseCloud() {
+      try {
+        if (typeof firebase !== 'undefined') {
+          if (!firebase.apps || !firebase.apps.length) {
+            kuroFirebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+          } else {
+            kuroFirebaseApp = firebase.app();
+          }
+          if (typeof firebase.database === 'function') {
+            kuroFirebaseDb = firebase.database();
+          }
+        }
+      } catch (err) {
+        console.warn('Firebase init:', err);
+      }
+    }
+
+    function toSafeKey(str) {
+      if (!str) return '';
+      return str.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    }
+
+    // ========================================================
     // CƠ CHẾ DỮ LIỆU & LỊCH ĐỘNG THEO THỜI GIAN THỰC (NEW DATE)
     // ========================================================
     function getTodayInfo() {
@@ -5019,63 +5058,115 @@
       if (!currentUser || currentUser.id === 'guest') return;
       clearTimeout(syncDebounceTimer);
       syncDebounceTimer = setTimeout(async () => {
+        const payload = {
+          userId: currentUser.id,
+          userName: currentUser.name,
+          mode: currentWalletMode,
+          appData: appData,
+          kuroPots: kuroPots,
+          updatedBy: currentUser.name,
+          updatedAt: Date.now()
+        };
+
+        // 1. Đồng bộ lên Firebase Cloud Database
         try {
-          await fetch('/api/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: currentUser.id,
-              mode: currentWalletMode,
-              appData: appData,
-              kuroPots: kuroPots
-            })
-          });
+          if (currentWalletMode === 'couple' && currentUser.coupleId) {
+            await fetch(`${FIREBASE_DB_URL}/coupleData/${currentUser.coupleId}.json`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+          } else {
+            await fetch(`${FIREBASE_DB_URL}/userData/${currentUser.id}.json`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+          }
         } catch(e) {}
-      }, 600);
+
+        // 2. Dự phòng máy chủ Node nếu chạy localhost
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          try {
+            await fetch('/api/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+          } catch(e) {}
+        }
+      }, 500);
     }
+
+    let isListeningRealtime = false;
+    let lastRemoteUpdateTimestamp = 0;
 
     async function pullSyncFromServer() {
       if (!currentUser || currentUser.id === 'guest') return;
-      try {
-        const resp = await fetch(`/api/sync?userId=${currentUser.id}`);
-        if (!resp.ok) return;
-        const res = await resp.json();
-        if (!res.ok) return;
 
-        // Tự động nhận trạng thái ghép đôi từ máy đối phương
-        if (res.user && !currentUser.coupleId && res.user.coupleId) {
-          currentUser = res.user;
+      // 1. Lắng nghe Realtime qua Firebase Database SDK
+      if (kuroFirebaseDb && !isListeningRealtime && currentUser.coupleId) {
+        try {
+          kuroFirebaseDb.ref('coupleData/' + currentUser.coupleId).on('value', snapshot => {
+            const remote = snapshot.val();
+            if (remote && remote.updatedAt && remote.updatedAt > lastRemoteUpdateTimestamp && remote.updatedBy !== currentUser.name) {
+              lastRemoteUpdateTimestamp = remote.updatedAt;
+              if (remote.appData) appData = remote.appData;
+              if (remote.kuroPots) kuroPots = remote.kuroPots;
+              const dataKey = getStorageKeyForAppData();
+              try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
+              const potKey = getStorageKeyForPots();
+              try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
+              loadUserDatabase();
+              if (typeof showChibiWithAlert === 'function') {
+                showChibiWithAlert(`🎀 ${remote.updatedBy} vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`);
+              }
+            }
+          });
+          isListeningRealtime = true;
+        } catch(e) {}
+      }
+
+      // 2. Kéo dữ liệu qua Cloud REST API
+      try {
+        // Tự động nhận trạng thái ghép đôi nếu người yêu vừa ghép mã của mình
+        const userRes = await fetch(`${FIREBASE_DB_URL}/usersList/${currentUser.id}.json`);
+        const remoteUser = await userRes.json();
+        if (remoteUser && !currentUser.coupleId && remoteUser.coupleId) {
+          currentUser = remoteUser;
           localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-          userProfile.partnerName = res.user.partnerName;
+          userProfile.partnerName = remoteUser.partnerName;
           saveUserProfile();
           setWalletMode('couple');
           if (typeof showChibiWithAlert === 'function') {
-            showChibiWithAlert(`🎉 ${res.user.partnerName} vừa ghép đôi thành công với bạn! Hai đứa có ví chung rồi nha! 💖✨`);
+            showChibiWithAlert(`🎉 ${remoteUser.partnerName} vừa ghép đôi thành công với bạn! Hai đứa có ví chung rồi nha! 💖✨`);
           }
         }
 
-        // Tự động nhận giao dịch mới nếu ở chế độ Ví Cặp Đôi
-        if (currentWalletMode === 'couple' && res.coupleData && res.coupleData.appData) {
-          const remoteJson = JSON.stringify(res.coupleData.appData);
-          if (remoteJson !== JSON.stringify(appData)) {
-            appData = res.coupleData.appData;
-            if (res.coupleData.kuroPots) kuroPots = res.coupleData.kuroPots;
+        // Tải dữ liệu ví (Ví cặp đôi hoặc Ví cá nhân)
+        const targetUrl = (currentWalletMode === 'couple' && currentUser.coupleId)
+          ? `${FIREBASE_DB_URL}/coupleData/${currentUser.coupleId}.json`
+          : `${FIREBASE_DB_URL}/userData/${currentUser.id}.json`;
+
+        const dataRes = await fetch(targetUrl);
+        const remoteData = await dataRes.json();
+        if (remoteData && remoteData.appData) {
+          if (remoteData.updatedAt && remoteData.updatedAt > lastRemoteUpdateTimestamp) {
+            lastRemoteUpdateTimestamp = remoteData.updatedAt;
+            appData = remoteData.appData;
+            if (remoteData.kuroPots) kuroPots = remoteData.kuroPots;
             const dataKey = getStorageKeyForAppData();
             try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
             const potKey = getStorageKeyForPots();
             try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
             loadUserDatabase();
-            if (res.coupleData.updatedBy && res.coupleData.updatedBy !== currentUser.name) {
-              if (typeof showChibiWithAlert === 'function') {
-                showChibiWithAlert(`${res.coupleData.updatedBy} vừa cập nhật ví chi tiêu chung kìa sen! 🎀💸`);
-              }
-            }
           }
         }
       } catch(e) {}
     }
 
     function initDatabase() {
+      initFirebaseCloud();
       initAuth();
       if (typeof loadUserProfile === 'function') loadUserProfile();
       loadUserDatabase();
@@ -6699,9 +6790,25 @@
     // ========================================================
     // CÁC HÀM TIỆN ÍCH FIREBASE & CÀI ĐẶT
     // ========================================================
-    function testDbConnection() {
-      playSfx('cheer');
-      alert('🟢 Kết nối Database: OK!\n- LocalStorage: Hoạt động vĩnh viễn trên iOS / Web\n- Firebase Firestore SDK: Sẵn sàng đồng bộ Realtime cặp đôi qua mã KURO-8822! ✨');
+    async function testDbConnection() {
+      playSfx('pop');
+      showPetPopover("Đang kiểm tra kết nối Cloud Firebase... ⏳");
+      try {
+        const start = Date.now();
+        const r = await fetch(`${FIREBASE_DB_URL}/ping.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ t: start })
+        });
+        const ms = Date.now() - start;
+        if (r.ok) {
+          playSfx('cheer');
+          alert(`🟢 KẾT NỐI CLOUD THÀNH CÔNG RỰC RỠ!\n- Server: Google Firebase Realtime Database (Singapore)\n- Độ trễ: ${ms}ms (Siêu tốc)\n- Đồng bộ: Tự động giữa iPhone, iPad, PC và Máy người yêu 24/7! 💖✨`);
+          showPetPopover(`Cloud Realtime đã kết nối (${ms}ms)! 🚀✨`);
+          return;
+        }
+      } catch(e) {}
+      alert("⚠️ Không thể kết nối tới Firebase, vui lòng kiểm tra lại mạng Internet nha sen!");
     }
 
     function exportDataJson() {
@@ -6785,40 +6892,40 @@
         return;
       }
 
-      // 1. Thử gọi API Server
+      // 1. Tìm partner trên Firebase Cloud
       try {
-        const resp = await fetch('/api/pair', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id, partnerCode: code })
-        });
-        if (resp.ok) {
-          const res = await resp.json();
-          if (res.ok) {
-            currentUser = res.user;
-            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-            userProfile.partnerName = res.partner.name;
-            saveUserProfile();
-            closeInviteModal();
-            setWalletMode('couple');
-            playSfx('cheer');
-            setChibiAction('cheer', 15000);
-            showPetPopover(`🎉 Ghép đôi thành công với ${res.partner.name}! Hai bạn đã có ví chung! 💖✨`);
-            return;
-          } else {
-            alert(res.error || "Không tìm thấy mã này!");
-            return;
-          }
+        const pairLookupRes = await fetch(`${FIREBASE_DB_URL}/usersByPairCode/${code}.json`);
+        const partnerUid = await pairLookupRes.json();
+        if (partnerUid) {
+          const pRes = await fetch(`${FIREBASE_DB_URL}/usersList/${partnerUid}.json`);
+          partner = await pRes.json();
         }
       } catch (err) {}
 
-      // 2. Fallback tìm trong usersList trên thiết bị
-      try {
-        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-        if (storedUsers) usersList = JSON.parse(storedUsers);
-      } catch(e) {}
+      // 2. Thử gọi API Server localhost nếu có
+      if (!partner && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        try {
+          const resp = await fetch('/api/pair', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentUser.id, partnerCode: code })
+          });
+          if (resp.ok) {
+            const res = await resp.json();
+            if (res.ok && res.partner) partner = res.partner;
+          }
+        } catch(e) {}
+      }
 
-      const partner = usersList.find(u => u.pairCode && u.pairCode.trim().toUpperCase() === code);
+      // 3. Fallback tìm trong usersList trên thiết bị
+      if (!partner) {
+        try {
+          const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+          if (storedUsers) usersList = JSON.parse(storedUsers);
+        } catch(e) {}
+        partner = usersList.find(u => u.pairCode && u.pairCode.trim().toUpperCase() === code);
+      }
+
       if (!partner) {
         alert("Không tìm thấy tài khoản nào có mã " + code + "! Hãy kiểm tra lại nha!");
         return;
@@ -6830,8 +6937,36 @@
       partner.coupleId = coupleId;
       partner.partnerName = currentUser.name;
 
+      // Cập nhật cả 2 tài khoản và khởi tạo ví chung lên Firebase Cloud
+      try {
+        await fetch(`${FIREBASE_DB_URL}/usersList/${currentUser.id}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(currentUser)
+        });
+        await fetch(`${FIREBASE_DB_URL}/usersList/${partner.id}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(partner)
+        });
+        const initCoupleData = {
+          appData: appData,
+          kuroPots: kuroPots,
+          coupleId: coupleId,
+          updatedBy: currentUser.name,
+          updatedAt: Date.now()
+        };
+        await fetch(`${FIREBASE_DB_URL}/coupleData/${coupleId}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(initCoupleData)
+        });
+      } catch(e) {}
+
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
+      try {
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
+      } catch(e) {}
 
       userProfile.partnerName = partner.name;
       saveUserProfile();
@@ -6840,23 +6975,23 @@
       setWalletMode('couple');
       playSfx('cheer');
       setChibiAction('cheer', 15000);
-      showPetPopover(`🎉 Ghép đôi thành công với ${partner.name}! Hai bạn đã có ví chung! 💖✨`);
+      showPetPopover(`🎉 Ghép đôi thành công với ${partner.name}! Hai bạn đã có ví chung Realtime! 💖✨`);
     }
 
     async function executeUnpair() {
       if (!confirm("Bạn có chắc chắn muốn ngắt kết nối ví chung và trở về ví riêng tư không?")) return;
 
-      try {
-        await fetch('/api/unpair', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id })
-        });
-      } catch(e) {}
-
       currentUser.coupleId = null;
       currentUser.partnerName = null;
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+
+      try {
+        await fetch(`${FIREBASE_DB_URL}/usersList/${currentUser.id}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(currentUser)
+        });
+      } catch(e) {}
 
       userProfile.partnerName = 'Người ấy';
       saveUserProfile();
@@ -7745,49 +7880,66 @@
         return;
       }
 
-      // Luôn tải lại usersList từ localStorage để dữ liệu luôn mới nhất
+      const safeTarget = toSafeKey(usernameVal);
+      let foundUser = null;
+
+      // 1. Tìm tài khoản trên Firebase Cloud (Đồng bộ Realtime xuyên thiết bị)
       try {
-        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-        if (storedUsers) usersList = JSON.parse(storedUsers);
+        const lookupRes = await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeTarget}.json`);
+        const foundUid = await lookupRes.json();
+        if (foundUid) {
+          const userRes = await fetch(`${FIREBASE_DB_URL}/usersList/${foundUid}.json`);
+          const cloudUser = await userRes.json();
+          if (cloudUser) {
+            foundUser = cloudUser;
+          }
+        }
       } catch(e) {}
 
-      const isBackendServer = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-      // 1. Thử gọi API nếu có backend localhost
-      if (isBackendServer) {
+      // 2. Nếu không tìm thấy trên Cloud (hoặc mất mạng), tìm trong usersList trên thiết bị
+      if (!foundUser) {
         try {
-          const resp = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: usernameVal, pass: passVal })
-          });
-          if (resp.ok) {
-            const res = await resp.json();
-            if (res.ok) {
-              currentUser = res.user;
-              localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-              finishAuthSuccess(currentUser, false);
-              return;
-            } else {
-              playSfx('pop');
-              alert(res.error || "Sai tài khoản hoặc mật khẩu!");
-              return;
-            }
-          }
+          const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+          if (storedUsers) usersList = JSON.parse(storedUsers);
         } catch(e) {}
+        foundUser = usersList.find(u => 
+          (u.username && u.username.toLowerCase() === usernameVal.toLowerCase()) || 
+          (u.name && u.name.toLowerCase() === usernameVal.toLowerCase())
+        );
       }
 
-      // 2. Tìm tài khoản trong usersList trên thiết bị (tìm theo email, sđt hoặc tên hiển thị)
-      const searchTarget = usernameVal.toLowerCase();
-      const found = usersList.find(u => 
-        (u.username && u.username.toLowerCase() === searchTarget) || 
-        (u.name && u.name.toLowerCase() === searchTarget)
-      );
-
-      if (found) {
-        if (found.pass === passVal) {
-          currentUser = found;
+      if (foundUser) {
+        if (foundUser.pass === passVal) {
+          currentUser = foundUser;
           localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+
+          // Đồng bộ tài khoản này vào usersList của thiết bị hiện tại
+          try {
+            const stored = localStorage.getItem(USERS_STORAGE_KEY);
+            const list = stored ? JSON.parse(stored) : [];
+            const idx = list.findIndex(u => u.id === foundUser.id);
+            if (idx >= 0) list[idx] = foundUser;
+            else list.push(foundUser);
+            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(list));
+          } catch(e) {}
+
+          // Tải toàn bộ dữ liệu ví của tài khoản từ Cloud về thiết bị này
+          try {
+            const dataUrl = foundUser.coupleId 
+              ? `${FIREBASE_DB_URL}/coupleData/${foundUser.coupleId}.json`
+              : `${FIREBASE_DB_URL}/userData/${foundUser.id}.json`;
+            const dataRes = await fetch(dataUrl);
+            const cloudData = await dataRes.json();
+            if (cloudData && cloudData.appData) {
+              appData = cloudData.appData;
+              if (cloudData.kuroPots) kuroPots = cloudData.kuroPots;
+              const dataKey = getStorageKeyForAppData();
+              try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
+              const potKey = getStorageKeyForPots();
+              try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
+            }
+          } catch(e) {}
+
           finishAuthSuccess(currentUser, false);
         } else {
           playSfx('pop');
@@ -7813,53 +7965,22 @@
         return;
       }
 
-      // Luôn tải lại usersList từ localStorage để kiểm tra trùng lặp chính xác
+      const safeEmail = toSafeKey(email);
+      const safeName = toSafeKey(name);
+
+      // 1. Kiểm tra tài khoản trên Firebase Cloud
       try {
-        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-        if (storedUsers) usersList = JSON.parse(storedUsers);
+        const checkRes = await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeEmail}.json`);
+        const existingUid = await checkRes.json();
+        if (existingUid) {
+          alert("Tên đăng nhập / Email này đã tồn tại trên Cloud! Hãy bấm Đăng nhập nha sen!");
+          document.getElementById('inpLoginUser').value = email;
+          switchAuthTab('login');
+          return;
+        }
       } catch(e) {}
 
-      const isBackendServer = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-      // 1. Thử gọi API nếu có backend localhost
-      if (isBackendServer) {
-        try {
-          const resp = await fetch('/api/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: email, name: name, pass: pass })
-          });
-          if (resp.ok) {
-            const res = await resp.json();
-            if (res.ok) {
-              currentUser = res.user;
-              const existIdx = usersList.findIndex(u => u.username && u.username.toLowerCase() === email.toLowerCase());
-              if (existIdx >= 0) usersList[existIdx] = currentUser;
-              else usersList.push(currentUser);
-
-              localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
-              localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-              finishAuthSuccess(currentUser, true);
-              return;
-            } else {
-              alert(res.error || "Lỗi đăng ký tài khoản!");
-              return;
-            }
-          }
-        } catch(e) {}
-      }
-
-      // 2. Lưu tài khoản trực tiếp vào thiết bị (Client-First Storage)
-      const exists = usersList.find(u => 
-        (u.username && u.username.toLowerCase() === email.toLowerCase())
-      );
-      if (exists) {
-        alert("Tên đăng nhập / Email này đã được đăng ký rồi! Đăng nhập thôi sen ơi!");
-        document.getElementById('inpLoginUser').value = email;
-        switchAuthTab('login');
-        return;
-      }
-
+      // 2. Tạo tài khoản mới
       const randPairCode = 'KURO-' + Math.floor(100000 + Math.random() * 900000);
       const newUser = {
         id: 'user_' + Date.now(),
@@ -7869,9 +7990,39 @@
         coupleId: null,
         partnerName: null,
         pass: pass,
-        avatar: name.charAt(0).toUpperCase()
+        avatar: name.charAt(0).toUpperCase(),
+        createdAt: Date.now()
       };
 
+      // 3. Lưu lên Firebase Cloud Realtime
+      try {
+        await fetch(`${FIREBASE_DB_URL}/usersList/${newUser.id}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newUser)
+        });
+        await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeEmail}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newUser.id)
+        });
+        await fetch(`${FIREBASE_DB_URL}/usersByLookup/${safeName}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newUser.id)
+        });
+        await fetch(`${FIREBASE_DB_URL}/usersByPairCode/${newUser.pairCode}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newUser.id)
+        });
+      } catch(e) {}
+
+      // 4. Lưu cục bộ an toàn trên thiết bị này
+      try {
+        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+        if (storedUsers) usersList = JSON.parse(storedUsers);
+      } catch(e) {}
       usersList.push(newUser);
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
 
