@@ -3,7 +3,7 @@ try {
   importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
 } catch (e) {}
 
-const CACHE_NAME = 'kuromoney-cache-v4';
+const CACHE_NAME = 'kuromoney-cache-v5';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
