@@ -5009,7 +5009,7 @@
     let currentWalletMode = 'solo';
 
     function getStorageKeyForAppData() {
-      if (currentWalletMode === 'couple' && currentUser && currentUser.coupleId) {
+      if (currentUser && currentUser.coupleId) {
         return 'KURO_COUPLE_' + currentUser.coupleId + '_DATA';
       }
       const uid = (currentUser && currentUser.id) ? currentUser.id : 'guest';
@@ -5017,7 +5017,7 @@
     }
 
     function getStorageKeyForPots() {
-      if (currentWalletMode === 'couple' && currentUser && currentUser.coupleId) {
+      if (currentUser && currentUser.coupleId) {
         return 'KURO_COUPLE_' + currentUser.coupleId + '_POTS';
       }
       const uid = (currentUser && currentUser.id) ? currentUser.id : 'guest';
@@ -5061,6 +5061,12 @@
     let syncDebounceTimer = null;
     function pushSyncToServer() {
       if (!currentUser || currentUser.id === 'guest') return;
+      const statusBadge = document.getElementById('dbStatusBadge');
+      if (statusBadge) {
+        statusBadge.innerText = '☁️ Đang đồng bộ...';
+        statusBadge.style.color = '#F59E0B';
+      }
+
       clearTimeout(syncDebounceTimer);
       syncDebounceTimer = setTimeout(async () => {
         const payload = {
@@ -5076,7 +5082,7 @@
         // 1. Đồng bộ lên Firebase Cloud Database
         try {
           if (currentUser.coupleId) {
-            // Khi đã ghép đôi thì luôn lưu lên ví chung coupleData để cả 2 máy cùng thấy ngay
+            // Khi đã ghép đôi: LƯU TRỰC TIẾP LÊN VÍ CHUNG CỦA 2 ĐỨA
             await fetch(`${FIREBASE_DB_URL}/coupleData/${currentUser.coupleId}.json`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -5088,7 +5094,16 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-        } catch(e) {}
+          if (statusBadge) {
+            statusBadge.innerText = '● Đã lưu Cloud Firebase 💖';
+            statusBadge.style.color = '#10B981';
+          }
+        } catch(e) {
+          if (statusBadge) {
+            statusBadge.innerText = '⚠️ Mạng yếu (Lưu máy)';
+            statusBadge.style.color = '#EF4444';
+          }
+        }
 
         // 2. Dự phòng máy chủ Node nếu chạy localhost
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -5100,7 +5115,7 @@
             });
           } catch(e) {}
         }
-      }, 300);
+      }, 250);
     }
 
     let isListeningRealtime = false;
