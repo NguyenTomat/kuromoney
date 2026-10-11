@@ -56,6 +56,37 @@
         console.warn('OneSignal init error:', err);
       }
     });
+
+    const ONESIGNAL_APP_ID = "b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99";
+    const ONESIGNAL_REST_KEY = atob("b3NfdjJfYXBwX3drYmZ6N3diYXZnazNqd3Y1a3M1eGtxNnRlbHR1dTI1eDR1ZWFtbXloZXRwYzRhcXdkM3NqZG51aGlyeGl2dnhwNHY1NGs1b3RtZnpjanJsbXZoeG5vdXBpd3VoajZydzUzdnp6c3k=");
+
+    async function sendOneSignalPushToDevices(title, body) {
+      try {
+        const payload = {
+          app_id: ONESIGNAL_APP_ID,
+          included_segments: ['Total Subscriptions'],
+          headings: { en: title },
+          contents: { en: body.replace(/<[^>]+>/g, '') },
+          web_url: 'https://nguyentomat.github.io/kuromoney/',
+          app_url: 'https://nguyentomat.github.io/kuromoney/',
+          chrome_web_icon: 'https://nguyentomat.github.io/kuromoney/assets/apple-touch-icon.png',
+          firefox_icon: 'https://nguyentomat.github.io/kuromoney/assets/apple-touch-icon.png'
+        };
+
+        const res = await fetch('https://api.onesignal.com/notifications', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Authorization': 'Key ' + ONESIGNAL_REST_KEY
+          },
+          body: JSON.stringify(payload)
+        });
+        const resJson = await res.json();
+        console.log('OneSignal Push Broadcast:', resJson);
+      } catch (err) {
+        console.warn('OneSignal broadcast error:', err);
+      }
+    }
   </script>
 
   <style>
@@ -6246,6 +6277,16 @@
           sendAppNotification("Đã Ghi Sổ 💸", `Đã lưu khoản chi -${amountVal}đ (${titleVal}) do ${selectedPayerName} chi!`);
         }
       }
+
+      // Gửi thông báo Web Push OneSignal đánh thức màn hình khóa máy đối phương
+      if (typeof sendOneSignalPushToDevices === 'function') {
+        const sign = isInc ? '+' : '-';
+        const payerName = selectedPayerName || (currentUser ? currentUser.name : 'Người ấy');
+        const pushTitle = isInc ? 'Ting Ting! Tiền Vào Ví 💰✨' : `🎀 ${payerName} Vừa Chi Tiêu 💸`;
+        const pushMsg = `${payerName} vừa thêm: ${sign}${amountVal}đ ("${titleVal}")! Vào xem ngay nha sen! 💖`;
+        sendOneSignalPushToDevices(pushTitle, pushMsg);
+      }
+
       if (isInc) {
         setChibiAction('cheer', 15000);
       }
@@ -7046,6 +7087,9 @@
     function testPushNotification() {
       requestNotificationPermission();
       sendAppNotification("Kuromi Chuông Reo 🔔✨", "Ting ting! Bé Kuromi đã bật chuông thông báo cute cho bạn rồi nè! 💖💸", { tag: 'TEST CHUÔNG' });
+      if (typeof sendOneSignalPushToDevices === 'function') {
+        sendOneSignalPushToDevices("Kuromi Chuông Reo 🔔✨", "Ting ting! Bé Kuromi vừa gửi thông báo thử nghiệm ra màn hình khóa cho bạn nè! 💖💸");
+      }
     }
 
     function checkDailyReminderSchedule() {
