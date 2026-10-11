@@ -34,6 +34,20 @@
   <!-- Kuromi Background Wallpapers Dataset (Base64 offline ready) -->
   <script src="assets/kuromi_bg_data.js"></script>
 
+  <!-- OneSignal Web Push SDK (Màn hình khóa iOS 16.4+ & Web Push) -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script>
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: "b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99",
+        safari_web_id: "web.onesignal.auto.b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99",
+        notifyButton: { enable: false },
+        allowLocalhostAsSecureOrigin: true
+      });
+    });
+  </script>
+
   <style>
     :root {
       --bg-gradient-start: #F5E8FF;
@@ -2743,10 +2757,125 @@
       background: linear-gradient(135deg, #E11D48, #BE123C);
       color: white;
       border-color: transparent;
-      box-shadow: 0 2px 8px rgba(225, 29, 72, 0.35);
+    /* ========================================================
+       KUROMI DYNAMIC ISLAND & SWEET NOTIFICATION BANNER
+       ======================================================== */
+    .kuromi-notify-toast {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      z-index: 350;
+      background: linear-gradient(135deg, rgba(35, 12, 60, 0.96), rgba(65, 20, 100, 0.96));
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      border-radius: 22px;
+      padding: 10px 14px;
+      border: 1.5px solid rgba(244, 114, 182, 0.6);
+      box-shadow: 0 16px 38px rgba(124, 58, 237, 0.4), 0 0 18px rgba(236, 72, 153, 0.35);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transform: translateY(-130px) scale(0.92);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease;
+      cursor: pointer;
+    }
+    .kuromi-notify-toast.show {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .kuro-toast-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #F472B6, #9333EA);
+      padding: 2px;
+      box-shadow: 0 0 12px rgba(244, 114, 182, 0.6);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .kuro-toast-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #FAF5FF;
+    }
+    .kuro-toast-badge-sparkle {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      font-size: 13px;
+      animation: kuroSparkleRotate 2s infinite linear;
+    }
+    @keyframes kuroSparkleRotate {
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(180deg) scale(1.2); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+    .kuro-toast-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .kuro-toast-title {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #F472B6;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 2px;
+      text-shadow: 0 0 8px rgba(244, 114, 182, 0.4);
+    }
+    .kuro-toast-pill {
+      font-size: 8.5px;
+      font-weight: 800;
+      background: rgba(236, 72, 153, 0.25);
+      border: 1px solid rgba(244, 114, 182, 0.5);
+      color: #FCE7F3;
+      padding: 1px 5px;
+      border-radius: 8px;
+    }
+    .kuro-toast-desc {
+      font-size: 11.5px;
+      color: #FFFFFF;
+      font-weight: 700;
+      line-height: 1.35;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .kuro-toast-desc strong {
+      color: #FDE047;
+      font-weight: 900;
+    }
+    .kuro-toast-close {
+      background: rgba(255, 255, 255, 0.15);
+      border: none;
+      color: #FBCFE8;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 900;
+      transition: background 0.15s;
+    }
+    .kuro-toast-close:active {
+      background: rgba(255, 255, 255, 0.35);
     }
   </style>
-
 
 </head>
 <body>
@@ -2762,6 +2891,22 @@
         <span>Kuromi OS</span>
       </div>
       <div class="island-cam"></div>
+    </div>
+
+    <!-- Kuromi Floating Dynamic Island Toast -->
+    <div class="kuromi-notify-toast" id="kuromiNotifyToast" onclick="hideKuromiToast()">
+      <div class="kuro-toast-avatar">
+        <img src="assets/chibi_clean.png" alt="Kuromi">
+        <span class="kuro-toast-badge-sparkle">✨</span>
+      </div>
+      <div class="kuro-toast-body">
+        <div class="kuro-toast-title">
+          <span id="kuroToastTitle">🎀 Kuromi Báo Cáo</span>
+          <span class="kuro-toast-pill" id="kuroToastTag">TING TING</span>
+        </div>
+        <div class="kuro-toast-desc" id="kuroToastDesc">Monika vừa thêm chi tiêu mới nè sen! 💖</div>
+      </div>
+      <button class="kuro-toast-close" onclick="hideKuromiToast(event)">✕</button>
     </div>
 
     <!-- iOS Status Bar -->
@@ -4113,19 +4258,27 @@
             osc.start(ctx.currentTime + idx * 0.06);
             osc.stop(ctx.currentTime + idx * 0.06 + 0.4);
           });
-        } else if (type === 'notify' || type === 'chime') {
-          // Chuông thông báo thanh thoát phong cách iOS
-          [659.25, 880, 1046.50].forEach((freq, idx) => {
+        } else if (type === 'notify' || type === 'chime' || type === 'kuromi') {
+          // Chuông thông báo Kuromi phép thuật Sanrio lấp lánh (Sparkle Magic Bell)
+          const notes = [
+            { f: 880.00, t: 0.00, d: 0.14, type: 'triangle', g: 0.22 }, // A5
+            { f: 1108.73, t: 0.06, d: 0.16, type: 'sine', g: 0.24 },    // C#6
+            { f: 1318.51, t: 0.12, d: 0.20, type: 'triangle', g: 0.26 }, // E6
+            { f: 1760.00, t: 0.18, d: 0.38, type: 'sine', g: 0.30 },    // A6 (ting!)
+            { f: 2793.83, t: 0.20, d: 0.40, type: 'sine', g: 0.16 },    // F7 sparkle
+            { f: 3520.00, t: 0.23, d: 0.42, type: 'sine', g: 0.14 }     // A7 glitter
+          ];
+          notes.forEach(n => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.09);
-            gain.gain.setValueAtTime(0.22, ctx.currentTime + idx * 0.09);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.09 + 0.45);
+            osc.type = n.type;
+            osc.frequency.setValueAtTime(n.f, ctx.currentTime + n.t);
+            gain.gain.setValueAtTime(n.g, ctx.currentTime + n.t);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + n.t + n.d);
             osc.connect(gain);
             gain.connect(ctx.destination);
-            osc.start(ctx.currentTime + idx * 0.09);
-            osc.stop(ctx.currentTime + idx * 0.09 + 0.45);
+            osc.start(ctx.currentTime + n.t);
+            osc.stop(ctx.currentTime + n.t + n.d);
           });
         }
       } catch (e) {}
@@ -5230,8 +5383,12 @@
               const potKey = getStorageKeyForPots();
               try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
               loadUserDatabase(true);
-              if (prevTs > 0 && isPartnerUpdate && typeof showChibiWithAlert === 'function') {
-                showChibiWithAlert(`🎀 ${remote.updatedBy} vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`);
+              if (prevTs > 0 && isPartnerUpdate) {
+                sendAppNotification(
+                  `🎀 ${remote.updatedBy} Vừa Chi Tiêu 💸`,
+                  `<strong>${remote.updatedBy}</strong> vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`,
+                  { tag: 'VÍ CHUNG' }
+                );
               }
             }
           });
@@ -5251,9 +5408,11 @@
           saveUserProfile();
           currentWalletMode = 'couple';
           syncUserProfileUI();
-          if (typeof showChibiWithAlert === 'function') {
-            showChibiWithAlert(`🎉 ${remoteUser.partnerName} vừa ghép đôi thành công với bạn! Hai đứa có ví chung rồi nha! 💖✨`);
-          }
+          sendAppNotification(
+            "Ghép Đôi Thành Công 🎉💖",
+            `<strong>${remoteUser.partnerName}</strong> vừa ghép đôi thành công với bạn! Hai đứa có ví chung rồi nha! ✨`,
+            { tag: 'GHÉP ĐÔI' }
+          );
         }
 
         // Tải dữ liệu ví (Ưu tiên Ví cặp đôi khi có coupleId)
@@ -5278,8 +5437,12 @@
             const potKey = getStorageKeyForPots();
             try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
             loadUserDatabase(true);
-            if (prevTs > 0 && isPartnerUpdate && typeof showChibiWithAlert === 'function') {
-              showChibiWithAlert(`🎀 ${remoteData.updatedBy} vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`);
+            if (prevTs > 0 && isPartnerUpdate) {
+              sendAppNotification(
+                `🎀 ${remoteData.updatedBy} Vừa Chi Tiêu 💸`,
+                `<strong>${remoteData.updatedBy}</strong> vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`,
+                { tag: 'VÍ CHUNG' }
+              );
             }
           }
         }
@@ -6718,41 +6881,72 @@
       }
     }
 
+    let kuroToastTimer = null;
+    function showKuromiToast(title, body, tag = 'TING TING') {
+      const toast = document.getElementById('kuromiNotifyToast');
+      if (!toast) return;
+      const tTitle = document.getElementById('kuroToastTitle');
+      const tDesc = document.getElementById('kuroToastDesc');
+      const tTag = document.getElementById('kuroToastTag');
+      if (tTitle) tTitle.innerText = title || '🎀 Kuromi Báo Cáo';
+      if (tDesc) tDesc.innerHTML = body || '';
+      if (tTag) tTag.innerText = tag;
+
+      toast.classList.add('show');
+      clearTimeout(kuroToastTimer);
+      kuroToastTimer = setTimeout(() => {
+        hideKuromiToast();
+      }, 6500);
+    }
+
+    function hideKuromiToast(e) {
+      if (e) e.stopPropagation();
+      const toast = document.getElementById('kuromiNotifyToast');
+      if (toast) toast.classList.remove('show');
+      clearTimeout(kuroToastTimer);
+    }
+
     function sendAppNotification(title, body, options = {}) {
       const isEnabled = localStorage.getItem(NOTIFY_STORAGE_KEY) !== 'false';
       if (!isEnabled) return;
 
-      // 1. Âm thanh chuông báo trong trẻo
-      playSfx('notify');
+      // 1. Âm thanh chuông Kuromi phép thuật Sanrio lấp lánh & rung haptic
+      playSfx('kuromi');
+      if ('vibrate' in navigator) {
+        try { navigator.vibrate([80, 50, 80]); } catch(e) {}
+      }
 
-      // 2. Hệ thống thông báo Native trên iOS (Lock screen / Dynamic Island / Trung tâm thông báo)
+      // 2. Banner Dynamic Island Kuromi siêu cute trượt từ đỉnh màn hình
+      showKuromiToast(title, body, options.tag || 'TING TING');
+
+      // 3. Hệ thống thông báo Native trên iOS (Lock screen / Dynamic Island / Trung tâm thông báo)
       if ('Notification' in window && Notification.permission === 'granted') {
         try {
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.ready.then(reg => {
               if (reg && reg.showNotification) {
                 reg.showNotification(title, {
-                  body: body,
+                  body: body.replace(/<[^>]+>/g, ''),
                   icon: 'assets/chibi_clean.png',
                   badge: 'assets/chibi_clean.png',
                   vibrate: [200, 100, 200],
                   tag: 'kuromoney-notify-' + Date.now()
                 });
               } else {
-                new Notification(title, { body: body, icon: 'assets/chibi_clean.png' });
+                new Notification(title, { body: body.replace(/<[^>]+>/g, ''), icon: 'assets/chibi_clean.png' });
               }
             }).catch(() => {
-              try { new Notification(title, { body: body, icon: 'assets/chibi_clean.png' }); } catch (err) {}
+              try { new Notification(title, { body: body.replace(/<[^>]+>/g, ''), icon: 'assets/chibi_clean.png' }); } catch (err) {}
             });
           } else {
-            new Notification(title, { body: body, icon: 'assets/chibi_clean.png' });
+            new Notification(title, { body: body.replace(/<[^>]+>/g, ''), icon: 'assets/chibi_clean.png' });
           }
         } catch (e) {
-          try { new Notification(title, { body: body, icon: 'assets/chibi_clean.png' }); } catch (err) {}
+          try { new Notification(title, { body: body.replace(/<[^>]+>/g, ''), icon: 'assets/chibi_clean.png' }); } catch (err) {}
         }
       }
 
-      // 3. Đánh thức bé Chibi hiện lên kèm lời thoại cảnh báo (tự biến mất sau 10s)
+      // 4. Đánh thức bé Chibi hiện lên kèm lời thoại cảnh báo (tự biến mất)
       if (typeof showChibiWithAlert === 'function') {
         showChibiWithAlert(body);
       } else {
@@ -6760,17 +6954,9 @@
       }
     }
 
-    function showNotificationToast(title, body) {
-      // Đã tắt banner in-app theo yêu cầu của user để không che màn hình iPhone
-    }
-
-    function hideNotificationToast() {
-      // Đã tắt banner in-app
-    }
-
     function testPushNotification() {
       requestNotificationPermission();
-      sendAppNotification("Kuromi Chuông Reo 🔔✨", "Ting ting! Hệ thống thông báo đã sẵn sàng trên điện thoại của bạn rồi nè! 💖");
+      sendAppNotification("Kuromi Chuông Reo 🔔✨", "Ting ting! Bé Kuromi đã bật chuông thông báo cute cho bạn rồi nè! 💖💸", { tag: 'TEST CHUÔNG' });
     }
 
     function checkDailyReminderSchedule() {
