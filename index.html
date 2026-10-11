@@ -5024,7 +5024,7 @@
       return 'KURO_USER_' + uid + '_POTS';
     }
 
-    function loadUserDatabase() {
+    function loadUserDatabase(skipSave = false) {
       const dataKey = getStorageKeyForAppData();
       try {
         const saved = localStorage.getItem(dataKey);
@@ -5032,7 +5032,9 @@
           appData = JSON.parse(saved);
         } else {
           appData = {};
-          saveDatabase();
+          if (!skipSave) {
+            try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
+          }
         }
       } catch (e) {
         appData = {};
@@ -5073,19 +5075,19 @@
 
         // 1. Đồng bộ lên Firebase Cloud Database
         try {
-          if (currentWalletMode === 'couple' && currentUser.coupleId) {
+          if (currentUser.coupleId) {
+            // Khi đã ghép đôi thì luôn lưu lên ví chung coupleData để cả 2 máy cùng thấy ngay
             await fetch(`${FIREBASE_DB_URL}/coupleData/${currentUser.coupleId}.json`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             });
-          } else {
-            await fetch(`${FIREBASE_DB_URL}/userData/${currentUser.id}.json`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
           }
+          await fetch(`${FIREBASE_DB_URL}/userData/${currentUser.id}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
         } catch(e) {}
 
         // 2. Dự phòng máy chủ Node nếu chạy localhost
@@ -5098,7 +5100,7 @@
             });
           } catch(e) {}
         }
-      }, 500);
+      }, 300);
     }
 
     let isListeningRealtime = false;
@@ -5120,7 +5122,7 @@
               try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
               const potKey = getStorageKeyForPots();
               try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
-              loadUserDatabase();
+              loadUserDatabase(true);
               if (typeof showChibiWithAlert === 'function') {
                 showChibiWithAlert(`🎀 ${remote.updatedBy} vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`);
               }
@@ -5140,21 +5142,22 @@
           localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
           userProfile.partnerName = remoteUser.partnerName;
           saveUserProfile();
-          setWalletMode('couple');
+          currentWalletMode = 'couple';
+          syncUserProfileUI();
           if (typeof showChibiWithAlert === 'function') {
             showChibiWithAlert(`🎉 ${remoteUser.partnerName} vừa ghép đôi thành công với bạn! Hai đứa có ví chung rồi nha! 💖✨`);
           }
         }
 
-        // Tải dữ liệu ví (Ví cặp đôi hoặc Ví cá nhân)
-        const targetUrl = (currentWalletMode === 'couple' && currentUser.coupleId)
+        // Tải dữ liệu ví (Ưu tiên Ví cặp đôi khi có coupleId)
+        const targetUrl = (currentUser.coupleId)
           ? `${FIREBASE_DB_URL}/coupleData/${currentUser.coupleId}.json`
           : `${FIREBASE_DB_URL}/userData/${currentUser.id}.json`;
 
         const dataRes = await fetch(targetUrl);
         const remoteData = await dataRes.json();
         if (remoteData && remoteData.appData) {
-          if (remoteData.updatedAt && remoteData.updatedAt > lastRemoteUpdateTimestamp) {
+          if (remoteData.updatedAt && remoteData.updatedAt > lastRemoteUpdateTimestamp && remoteData.updatedBy !== currentUser.name) {
             lastRemoteUpdateTimestamp = remoteData.updatedAt;
             appData = remoteData.appData;
             if (remoteData.kuroPots) kuroPots = remoteData.kuroPots;
@@ -5162,7 +5165,7 @@
             try { localStorage.setItem(dataKey, JSON.stringify(appData)); } catch(e) {}
             const potKey = getStorageKeyForPots();
             try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
-            loadUserDatabase();
+            loadUserDatabase(true);
           }
         }
       } catch(e) {}
@@ -5179,15 +5182,20 @@
       if (typeof initDraggableChibi === 'function') initDraggableChibi();
       if (typeof initChibiGreeting === 'function') initChibiGreeting();
 
+      // Kéo dữ liệu ví chung / cá nhân từ Cloud Firebase ngay lập tức khi mở app
+      if (currentUser && currentUser.id !== 'guest') {
+        pullSyncFromServer();
+      }
+
       // Bắt buộc hiện modal đăng nhập / đăng ký khi vào app nếu chưa đăng nhập hoặc là Khách
       if (!currentUser || currentUser.id === 'guest') {
         setTimeout(openAuthModal, 450);
       }
       if (typeof updateGuestBadgeUI === 'function') updateGuestBadgeUI();
 
-      // Khởi động đồng bộ ngầm định kỳ 6 giây giữa 2 điện thoại
+      // Khởi động đồng bộ ngầm định kỳ 3 giây giữa 2 điện thoại
       if (!window.kuroSyncInterval) {
-        window.kuroSyncInterval = setInterval(pullSyncFromServer, 6000);
+        window.kuroSyncInterval = setInterval(pullSyncFromServer, 3000);
       }
 
       // Tự động phát nhạc nền Kuromi khi vào app (kèm unlocker 1 chạm cho iOS Safari)
@@ -6895,6 +6903,8 @@
         return;
       }
 
+      let partner = null;
+
       // 1. Tìm partner trên Firebase Cloud
       try {
         const pairLookupRes = await fetch(`${FIREBASE_DB_URL}/usersByPairCode/${code}.json`);
@@ -6952,9 +6962,20 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(partner)
         });
+
+        // Kiểm tra xem trên cloud đã có coupleData chưa, nếu có thì giữ nguyên, nếu chưa có thì gộp data hiện tại
+        let existingCouple = null;
+        try {
+          const cCheck = await fetch(`${FIREBASE_DB_URL}/coupleData/${coupleId}.json`);
+          existingCouple = await cCheck.json();
+        } catch(e) {}
+
+        const finalAppData = (existingCouple && existingCouple.appData) ? existingCouple.appData : appData;
+        const finalPots = (existingCouple && existingCouple.kuroPots) ? existingCouple.kuroPots : kuroPots;
+
         const initCoupleData = {
-          appData: appData,
-          kuroPots: kuroPots,
+          appData: finalAppData,
+          kuroPots: finalPots,
           coupleId: coupleId,
           updatedBy: currentUser.name,
           updatedAt: Date.now()
@@ -6964,6 +6985,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(initCoupleData)
         });
+        appData = finalAppData;
+        kuroPots = finalPots;
       } catch(e) {}
 
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
@@ -6975,7 +6998,9 @@
       saveUserProfile();
 
       closeInviteModal();
-      setWalletMode('couple');
+      currentWalletMode = 'couple';
+      loadUserDatabase(true);
+      syncUserProfileUI();
       playSfx('cheer');
       setChibiAction('cheer', 15000);
       showPetPopover(`🎉 Ghép đôi thành công với ${partner.name}! Hai bạn đã có ví chung Realtime! 💖✨`);
@@ -8130,10 +8155,12 @@
       saveUserProfile();
 
       currentWalletMode = user.coupleId ? 'couple' : 'solo';
-      loadUserDatabase();
+      loadUserDatabase(true);
       syncUserProfileUI();
       updateGuestBadgeUI();
       closeAuthModal();
+
+      pullSyncFromServer();
 
       playSfx('cheer');
       setChibiAction('cheer', 15000);
