@@ -435,16 +435,19 @@
 
     .cal-days-scroll {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       overflow-x: auto;
       scrollbar-width: none;
-      padding-bottom: 2px;
+      padding-bottom: 4px;
+      padding-right: 22px;
+      padding-left: 2px;
       scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
     }
     .cal-days-scroll::-webkit-scrollbar { display: none; }
 
     .cal-day-card {
-      flex: 0 0 63px;
+      flex: 0 0 58px;
       height: 86px;
       background: rgba(250, 245, 255, 0.7);
       border: 1px solid rgba(216, 180, 254, 0.45);
@@ -454,12 +457,16 @@
       align-items: center;
       justify-content: space-between;
       cursor: pointer;
-      padding: 5px 3px 6px;
+      padding: 5px 2px 6px;
       transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .cal-day-card:hover {
       transform: translateY(-2px);
       background: #FFFFFF;
+    }
+    .cal-day-card.today-pill:not(.active) {
+      border: 1.5px dashed #C084FC;
+      background: rgba(253, 242, 248, 0.85);
     }
 
     .cal-day-card .day-name {
@@ -1682,6 +1689,17 @@
       100% { transform: scale(1); }
     }
 
+    .kuromi-thinking {
+      animation: kuromiThinkPonder 0.95s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    }
+
+    @keyframes kuromiThinkPonder {
+      0% { transform: scale(1) rotate(0deg); }
+      30% { transform: scale(1.12) translateY(-8px) rotate(-14deg); }
+      70% { transform: scale(1.12) translateY(-8px) rotate(-16deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+
     /* Sassy Kuromi Speech Bubble attached directly to head */
     .chibi-popover {
       position: absolute;
@@ -2777,6 +2795,16 @@
           <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
         </div>
       </div>
+    <!-- Banner Cảnh báo Chế độ Khách (Chỉ nghịch Chibi, chạm để đăng nhập) -->
+    <div class="guest-banner-box" id="guestBanner" style="display:none; margin: 4px 18px 8px; background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); border: 1.5px dashed #F59E0B; border-radius: 16px; padding: 8px 12px; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.18); cursor: pointer;" onclick="openAuthModal()">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">👀</span>
+        <div>
+          <div style="font-size:11.5px; font-weight:800; color:#92400E; line-height:1.2;">Chế độ Khách (Chỉ trải nghiệm Chibi)</div>
+          <div style="font-size:9.5px; font-weight:700; color:#B45309;">Chạm để Đăng Nhập / Đăng Ký mở full tính năng ✨</div>
+        </div>
+      </div>
+      <button style="border:none; background:#7C3AED; color:#FFF; font-size:10px; font-weight:800; padding:5px 10px; border-radius:12px; cursor:pointer; pointer-events:none;">Đăng Nhập 🔑</button>
     </div>
 
     <!-- Banner Mời Nửa Kia (Mới vào chỉ có 1 mình) -->
@@ -3875,8 +3903,9 @@
           <button class="btn-save" onclick="handleLoginSubmit()">Đăng Nhập Vào Ví 💖</button>
 
           <!-- Quick Guest Access Button -->
-          <div style="text-align:center; margin:14px 0 6px; font-size:10px; color:var(--text-muted); font-weight:700;">- HOẶC TRẢI NGHIỆM NGAY TỨC THÌ -</div>
-          <button class="btn-pot-quick" style="width:100%; padding:9px 12px; font-size:11.5px; text-align:center; font-weight:800; background:#FAF5FF; color:#7C3AED; border-color:#D8B4FE;" onclick="quickGuestAccess()">✨ Vào Nhanh Trải Nghiệm (Không Cần Mật Khẩu)</button>
+          <div style="text-align:center; margin:14px 0 6px; font-size:10px; color:var(--text-muted); font-weight:700;">- HOẶC TRẢI NGHIỆM THỬ -</div>
+          <button class="btn-pot-quick" style="width:100%; padding:9.5px 12px; font-size:11.5px; text-align:center; font-weight:800; background:#FAF5FF; color:#7C3AED; border-color:#D8B4FE;" onclick="quickGuestAccess()">👀 Chế Độ Khách (Chỉ Nghịch & Chọc Chibi Kuromi)</button>
+          <div style="font-size:9.5px; color:#9333EA; text-align:center; margin-top:5px; font-weight:600; line-height:1.3;">*Chế độ khách chỉ được vuốt ve nghịch bé Kuromi! Muốn thêm lịch, ghi sổ hay tạo hũ thì cần Đăng Ký / Đăng Nhập nha 😈</div>
         </div>
 
         <!-- FORM ĐĂNG KÝ -->
@@ -3905,6 +3934,11 @@
           </div>
 
           <button class="btn-save" onclick="handleRegisterSubmit()">Tạo Hồ Sơ & Bắt Đầu 💖</button>
+
+          <!-- Quick Guest Access Button -->
+          <div style="text-align:center; margin:14px 0 6px; font-size:10px; color:var(--text-muted); font-weight:700;">- HOẶC TRẢI NGHIỆM THỬ -</div>
+          <button class="btn-pot-quick" style="width:100%; padding:9.5px 12px; font-size:11.5px; text-align:center; font-weight:800; background:#FAF5FF; color:#7C3AED; border-color:#D8B4FE;" onclick="quickGuestAccess()">👀 Chế Độ Khách (Chỉ Nghịch & Chọc Chibi Kuromi)</button>
+          <div style="font-size:9.5px; color:#9333EA; text-align:center; margin-top:5px; font-weight:600; line-height:1.3;">*Chế độ khách chỉ được vuốt ve nghịch bé Kuromi! Muốn thêm lịch, ghi sổ hay tạo hũ thì cần Đăng Ký / Đăng Nhập nha 😈</div>
         </div>
 
         <!-- Section Đăng Xuất (khi đã đăng nhập) -->
@@ -4378,6 +4412,7 @@
     let selectedPenaltyFineAmount = 20000;
 
     function openPenaltyModal() {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('xử phạt tiêu hoang')) return;
       playSfx('pop');
       triggerHaptic('medium');
       const meName = (typeof userProfile !== 'undefined' && userProfile.myName) ? userProfile.myName : 'Tôi';
@@ -4671,6 +4706,7 @@
     }
 
     function quickAddPot(potId, amount) {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('nạp tiền vào hũ')) return;
       const pot = kuroPots.find(p => p.id === potId);
       if (!pot) return;
       pot.current = Math.min(pot.target, pot.current + amount);
@@ -4681,6 +4717,7 @@
     }
 
     function openNewPotModal() {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('tạo hũ tiết kiệm mới')) return;
       const emojis = ['✈️', '📱', '🎁', '🛵', '💍', '🏠', '🎮', '☕', '🐱', '🏖️', '💻', '👗'];
       selectedNewPotEmoji = '✈️';
       const grid = document.getElementById('potEmojiGrid');
@@ -4750,6 +4787,7 @@
 
     function deletePot(potId, e) {
       if (e) e.stopPropagation();
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('xóa hũ tiết kiệm')) return;
       const pot = kuroPots.find(p => p.id === potId);
       if (!pot) return;
       if (confirm(`Kuromi hỏi lại: Bạn có chắc chắn muốn đập vỡ / xóa hũ "${pot.name}" không? 🐷🔨`)) {
@@ -4761,6 +4799,7 @@
     }
 
     function openDepositPotModal(potId) {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('nạp / rút tiền hũ')) return;
       const pot = kuroPots.find(p => p.id === potId);
       if (!pot) return;
       selectedPotForDeposit = pot;
@@ -4978,10 +5017,11 @@
       if (typeof initDraggableChibi === 'function') initDraggableChibi();
       if (typeof initChibiGreeting === 'function') initChibiGreeting();
 
-      // Nếu chưa có tài khoản nào đăng nhập: hiện modal đăng nhập sau 600ms
-      if (!currentUser) {
-        setTimeout(openAuthModal, 600);
+      // Bắt buộc hiện modal đăng nhập / đăng ký khi vào app nếu chưa đăng nhập hoặc là Khách
+      if (!currentUser || currentUser.id === 'guest') {
+        setTimeout(openAuthModal, 450);
       }
+      if (typeof updateGuestBadgeUI === 'function') updateGuestBadgeUI();
 
       // Khởi động đồng bộ ngầm định kỳ 6 giây giữa 2 điện thoại
       if (!window.kuroSyncInterval) {
@@ -5037,6 +5077,7 @@
 
     function renderCalendarStrip() {
       const scroll = document.getElementById('calDaysScroll');
+      if (!scroll) return;
       const keys = ['06/10', '07/10', '08/10', '09/10', '10/10', '11/10', '12/10'];
       const dayNames = {
         '06/10': 'T2', '07/10': 'T3', '08/10': 'T4', '09/10': 'T5',
@@ -5048,12 +5089,13 @@
         const stats = calculateDayStats(k);
         const dayNum = k.split('/')[0];
         const isActive = (k === selectedDateKey);
+        const isToday = (k === '10/10');
 
         const incBadge = stats.income > 0 ? `<span class="day-badge-pill income">+${formatCompactMoney(stats.income)} 💸</span>` : `<span class="day-badge-pill income">+0k</span>`;
         const expBadge = stats.expense > 0 ? `<span class="day-badge-pill spend">-${formatCompactMoney(stats.expense)}</span>` : `<span class="day-badge-pill neutral">Nghỉ ngơi</span>`;
 
         html += `
-          <div class="cal-day-card ${isActive ? 'active' : ''}" onclick="selectDateByKey('${k}')">
+          <div class="cal-day-card ${isActive ? 'active' : ''} ${isToday ? 'today-pill' : ''}" data-is-today="${isToday}" onclick="selectDateByKey('${k}')">
             <span class="day-name">${dayNames[k]}</span>
             <span class="day-num">${dayNum}</span>
             <div class="day-badges-stack">
@@ -5064,6 +5106,19 @@
         `;
       });
       scroll.innerHTML = html;
+
+      // Tự động cuộn sao cho ngày Hôm nay nằm trọn vẹn ở gần cuối hiển thị, không bị mép che khuất
+      setTimeout(() => {
+        const todayCard = scroll.querySelector('[data-is-today="true"]') || scroll.querySelector('.cal-day-card.active');
+        if (todayCard) {
+          const scrollTarget = todayCard.offsetLeft + todayCard.offsetWidth - scroll.clientWidth + 16;
+          if (scrollTarget > 0) {
+            scroll.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+          } else {
+            scroll.scrollTo({ left: 0, behavior: 'smooth' });
+          }
+        }
+      }, 80);
     }
 
     function selectDateByKey(dateKey) {
@@ -5466,6 +5521,7 @@
     }
 
     function openManualModal() {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('thêm chi tiêu & thu nhập')) return;
       currentEditIdx = -1;
       document.getElementById('modalTitle').innerText = '✍️ Ghi Giao Dịch Mới (' + selectedDateKey + ')';
       document.getElementById('scanZone').style.display = 'none';
@@ -5482,6 +5538,7 @@
     }
 
     function openScanModal() {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('quét hóa đơn AI')) return;
       currentEditIdx = -1;
       document.getElementById('modalTitle').innerText = '📸 Quét Bill / Biến Động';
       document.getElementById('scanZone').style.display = 'block';
@@ -5499,6 +5556,7 @@
     }
 
     function openEditModal(idx) {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('chỉnh sửa giao dịch')) return;
       currentEditIdx = idx;
       const tx = appData[selectedDateKey].txs[idx];
       if (!tx) return;
@@ -5623,6 +5681,7 @@
     }
 
     function deleteCurrentTx() {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('xóa giao dịch')) return;
       if (currentEditIdx < 0) return;
       const confirmed = confirm("Bạn có chắc chắn muốn xóa khoản giao dịch này không?");
       if (confirmed) {
@@ -6066,33 +6125,66 @@
     // ========================================================
     const kuromiFortunes = [
       "🥠 Quẻ Đại Cát: Nay vận may gõ cửa, đè đầu người yêu bắt bao ăn trưa nha sen!",
-      "⚡ Quẻ Hao Tài: Thấy giỏ hàng Shopee/TikTok là tắt máy đi ngủ liền, bấm thanh toán là gãy xương sườn!",
-      "🍜 Quẻ Mì Tôm: Ví đang thở oxy, ai rủ đi cà phê nhớ bảo 'nay tao bận thiền' để giữ tiền nha!",
-      "💅 Quẻ Sang Chảnh: Tiền có thể hết nhưng thần thái không thể rách! Tối nay đi ăn lẩu xả láng đi!",
-      "🍯 Quẻ Đại Lộc: Đã nhịn được cốc trà sữa thứ 3 trong tuần, thần tài Kuromi duyệt cho 1 điểm thanh lịch!",
-      "😈 Quẻ Nghiệp Quật: Bớt lén mua đồ rồi khai gian giá lại nha, tui méc bồ bây giờ đó!",
+      "😼 Quẻ Triết Lý Mèo: Tiền không tự sinh ra và không tự mất đi, nó chỉ chuyển từ ví bạn sang tài khoản shipper thôi!",
+      "😈 Quẻ Mỏ Hỗn: Ví đang thở oxy, hốc ít lại mà tiết kiệm! Thèm trà sữa thì tự uống nước lọc rồi tưởng tượng đi!",
+      "🛑 Quẻ Đại Hung: Cấm tuyệt đối lướt Shopee/TikTok Shop hôm nay! Bấm thanh toán là Kuromi cào rách mặt đấy!",
+      "💸 Quẻ Thần Tài Né: Hôm nay đừng có tỏ ra hào phóng! Ai rủ đi cà phê thì giả vờ bận ngủ ở nhà liền!",
+      "💅 Quẻ Phú Bà: Hôm nay thần tài chiếu cố người yêu bạn, mau đè ra bắt bao ăn bao uống tẹt ga!",
+      "🍜 Quẻ Mì Tôm: Nhìn lại số dư đi rồi tự nấu mì gói ăn, mơ mộng gì bữa ăn tiền triệu hả sen!",
+      "🧘‍♀️ Quẻ Tâm Linh: Muốn giàu thì bớt lướt livestream, muốn êm ấm thì đừng giấu quỹ đen!",
+      "⚡ Quẻ Hao Tài: Thấy giỏ hàng Shopee là tắt máy đi ngủ liền, bấm thanh toán là gãy xương sườn!",
+      "🍯 Quẻ Đại Lộc: Đã nhịn được cốc trà sữa thứ 3 trong tuần, Kuromi duyệt cho 1 điểm thanh lịch!",
       "🐾 Quẻ Bình An: Tiền trong ví vẫn nguyên vẹn, Kuromi chấm cho 10 điểm ngoan ngoãn!",
       "💸 Quẻ Bốc Hơi: Ủa tiền lương mới về đâu hết rồi? Đừng để Kuromi phải cầm chổi rượt nha!"
     ];
 
+    let isDrawingFortune = false;
     function drawKuromiFortune() {
-      playSfx('cheer');
+      if (isDrawingFortune) return;
+      isDrawingFortune = true;
+
+      // 1. Đánh thức bé Kuromi Chibi hiện lên ngay lập tức
+      showChibiWithAlert();
+      playSfx('pop');
+
       const pet = document.getElementById('chibiPet');
+      const fortuneEl = document.getElementById('smartFortuneText');
+
+      // 2. Chế độ Chibi Suy Ngẫm Triết Lý Mèo (giống meme chống cằm suy nghĩ)
       if (pet) {
         pet.classList.remove('kuromi-hop');
+        pet.classList.remove('kuromi-thinking');
         void pet.offsetWidth;
-        pet.classList.add('kuromi-hop');
+        pet.classList.add('kuromi-thinking');
       }
-      const fortuneEl = document.getElementById('smartFortuneText');
+
+      // Lời thoại suy ngẫm lúc bốc
+      showPetPopover("🤔 Hừm... để bổn cô nương chống cằm bấm quẻ xem nào...");
       if (fortuneEl) {
-        fortuneEl.style.opacity = '0';
-        setTimeout(() => {
-          const randomFortune = kuromiFortunes[Math.floor(Math.random() * kuromiFortunes.length)];
+        fortuneEl.style.opacity = '0.5';
+        fortuneEl.innerText = "🔮 Kuromi đang suy ngẫm nhân sinh & bói vận mệnh tài chính...";
+      }
+
+      // 3. Sau 950ms suy ngẫm thì Kuromi nhảy cẫng lên và đích thân đọc quẻ cực hài hước!
+      setTimeout(() => {
+        playSfx('cheer');
+        if (pet) {
+          pet.classList.remove('kuromi-thinking');
+          void pet.offsetWidth;
+          pet.classList.add('kuromi-hop');
+        }
+
+        const randomFortune = kuromiFortunes[Math.floor(Math.random() * kuromiFortunes.length)];
+        if (fortuneEl) {
           fortuneEl.innerText = randomFortune;
           fortuneEl.style.opacity = '1';
-          showPetPopover(randomFortune);
-        }, 150);
-      }
+        }
+
+        // Bé Kuromi Chibi đích thân nhảy lên đọc quẻ cho User nghe
+        showPetPopover(randomFortune);
+        resetChibiIdleTimer();
+        isDrawingFortune = false;
+      }, 950);
     }
 
     function updateSmartBudgetAdvisor() {
@@ -6414,6 +6506,7 @@
     // MODAL XEM CẢ THÁNG (FULL MONTH GRID)
     // ========================================================
     function openFullMonthModal() {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('xem và thêm lịch cả tháng')) return;
       renderFullMonthGrid();
       document.getElementById('fullMonthModal').style.display = 'flex';
       playSfx('pop');
@@ -6505,10 +6598,7 @@
     }
 
     function openInviteModal() {
-      if (!currentUser) {
-        openAuthModal();
-        return;
-      }
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('ghép đôi ví chung')) return;
       const codeVal = document.getElementById('myPairCodeVal');
       if (codeVal) codeVal.innerText = currentUser.pairCode || 'KURO-123456';
 
@@ -7278,6 +7368,7 @@
     }
 
     function openProfileEditModal() {
+      if (typeof checkAuthRequired === 'function' && !checkAuthRequired('chỉnh sửa hồ sơ ví')) return;
       document.getElementById('inpEditMyName').value = userProfile.myName || '';
       document.getElementById('inpEditPartnerName').value = userProfile.partnerName || '';
       document.getElementById('inpEditCoupleName').value = userProfile.coupleName || '';
@@ -7323,26 +7414,58 @@
       showPetPopover(`Đã cập nhật hồ sơ: ${userProfile.myName} & ${userProfile.partnerName}! 💖✨`);
     }
 
+    // ========================================================
+    // KIỂM TRA QUYỀN HẠN: KHÁCH CHỈ ĐƯỢC NGHỊCH CHIBI
+    // ========================================================
+    function checkAuthRequired(featureName = 'tính năng này') {
+      if (!currentUser || currentUser.id === 'guest') {
+        playSfx('pop');
+        setChibiAction('peace', 12000);
+        showChibiWithAlert(`🔒 Ủa sen ơi! Chế độ Khách chỉ được nghịch tui thui nha! Muốn ${featureName} thì phải ĐĂNG KÝ hoặc ĐĂNG NHẬP đã nè! 😈✨`);
+        setTimeout(() => {
+          openAuthModal();
+        }, 400);
+        return false;
+      }
+      return true;
+    }
+
+    function updateGuestBadgeUI() {
+      const gBanner = document.getElementById('guestBanner');
+      const invBanner = document.getElementById('inviteBanner');
+      if (currentUser && currentUser.id === 'guest') {
+        if (gBanner) gBanner.style.display = 'flex';
+        if (invBanner) invBanner.style.display = 'none';
+      } else {
+        if (gBanner) gBanner.style.display = 'none';
+        if (invBanner && (!currentUser || !currentUser.coupleId)) {
+          invBanner.style.display = 'flex';
+        }
+      }
+    }
+
     function quickGuestAccess() {
       const guestUser = {
         id: 'guest',
         username: 'guest',
-        name: 'Bạn',
+        name: 'Khách',
         pairCode: 'KURO-000000',
         coupleId: null,
         partnerName: 'Người ấy'
       };
       currentUser = guestUser;
-      userProfile.myName = 'Bạn';
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+      userProfile.myName = 'Khách';
       userProfile.partnerName = 'Người ấy';
       saveUserProfile();
       currentWalletMode = 'solo';
       loadUserDatabase();
       syncUserProfileUI();
-      closeAuthModal();
+      document.getElementById('authModal').style.display = 'none';
       playSfx('cheer');
       setChibiAction('cheer', 15000);
-      showPetPopover(`Đang trải nghiệm chế độ Khách! Bạn có thể bấm avatar để tạo tài khoản riêng bất cứ lúc nào! 💖`);
+      showChibiWithAlert("Sen đang ở Chế độ Khách nha! Chỉ được nghịch tui thui, muốn ghi sổ hay thêm lịch thì bấm đăng nhập nghen! 😈🐾");
+      updateGuestBadgeUI();
     }
 
     // ========================================================
@@ -7374,6 +7497,7 @@
       }
 
       applyAuthUserUI();
+      updateGuestBadgeUI();
     }
 
     function applyAuthUserUI() {
@@ -7390,20 +7514,24 @@
     function openAuthModal() {
       document.getElementById('authModal').style.display = 'flex';
       switchAuthTab('login');
-      if (currentUser) {
+      if (currentUser && currentUser.id !== 'guest') {
         document.getElementById('authGreeting').innerText = `Chào mừng ${currentUser.name} quay lại! 🖤`;
         document.getElementById('authSubGreeting').innerText = `Đang đăng nhập: ${currentUser.username}`;
         document.getElementById('authLogoutSection').style.display = 'block';
       } else {
         document.getElementById('authGreeting').innerText = 'Chào mừng bạn đến với KuroMoney! 🖤';
-        document.getElementById('authSubGreeting').innerText = 'Đăng nhập để đồng bộ ví chung & lưu trữ chi tiêu';
+        document.getElementById('authSubGreeting').innerText = 'Đăng nhập / Đăng ký để lưu sổ & thêm lịch (Khách chỉ được nghịch Chibi)';
         document.getElementById('authLogoutSection').style.display = 'none';
       }
       playSfx('pop');
     }
 
     function closeAuthModal() {
-      document.getElementById('authModal').style.display = 'none';
+      if (!currentUser) {
+        quickGuestAccess();
+      } else {
+        document.getElementById('authModal').style.display = 'none';
+      }
     }
 
     function switchAuthTab(tab) {
@@ -7556,6 +7684,7 @@
       currentWalletMode = user.coupleId ? 'couple' : 'solo';
       loadUserDatabase();
       syncUserProfileUI();
+      updateGuestBadgeUI();
       closeAuthModal();
 
       playSfx('cheer');
@@ -7576,6 +7705,7 @@
         currentWalletMode = 'solo';
         loadUserDatabase();
         syncUserProfileUI();
+        updateGuestBadgeUI();
         closeAuthModal();
         playSfx('pop');
         showPetPopover("Đã đăng xuất! Chạm vào avatar trên đầu để đăng nhập tài khoản khác nha! 🐾");
