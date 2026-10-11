@@ -39,12 +39,22 @@
   <script>
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.init({
-        appId: "b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99",
-        safari_web_id: "web.onesignal.auto.b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99",
-        notifyButton: { enable: false },
-        allowLocalhostAsSecureOrigin: true
-      });
+      try {
+        await OneSignal.init({
+          appId: "b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99",
+          safari_web_id: "web.onesignal.auto.b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99",
+          serviceWorkerPath: "OneSignalSDKWorker.js",
+          serviceWorkerParam: { scope: "/kuromoney/" },
+          notifyButton: { enable: true },
+          allowLocalhostAsSecureOrigin: true
+        });
+        // Tự động gọi popup cấp quyền thông báo khi mở web
+        if (OneSignal.Slidedown) {
+          OneSignal.Slidedown.promptPush();
+        }
+      } catch (err) {
+        console.warn('OneSignal init error:', err);
+      }
     });
   </script>
 
@@ -6869,6 +6879,9 @@
     }
 
     function requestNotificationPermission() {
+      if (window.OneSignal && OneSignal.Slidedown) {
+        try { OneSignal.Slidedown.promptPush(); } catch(e) {}
+      }
       if ('Notification' in window) {
         if (Notification.permission === 'default') {
           Notification.requestPermission().then(perm => {

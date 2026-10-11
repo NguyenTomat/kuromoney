@@ -1,5 +1,9 @@
 // Kuromi PWA Service Worker for iOS Native Push Notifications & Offline Support
-const CACHE_NAME = 'kuromoney-cache-v3';
+try {
+  importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
+} catch (e) {}
+
+const CACHE_NAME = 'kuromoney-cache-v4';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
