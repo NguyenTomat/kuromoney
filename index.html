@@ -37,38 +37,82 @@
   <!-- OneSignal Web Push SDK (Màn hình khóa iOS 16.4+ & Web Push) -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <script>
+    const ONESIGNAL_APP_ID = "b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99";
+    const ONESIGNAL_REST_KEY = atob("b3NfdjJfYXBwX3drYmZ6N3diYXZnazNqd3Y1a3M1eGtxNnRlbHR1dTI1eDR1ZWFtbXloZXRwYzRhcXdkM3NqZG51aGlyeGl2dnhwNHY1NGs1b3RtZnpjanJsbXZoeG5vdXBpd3VoajZydzUzdnp6c3k=");
+
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
       try {
+        const isGithubSubpath = window.location.pathname.indexOf('/kuromoney') === 0;
         await OneSignal.init({
-          appId: "b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99",
+          appId: ONESIGNAL_APP_ID,
           safari_web_id: "web.onesignal.auto.b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99",
-          serviceWorkerPath: "OneSignalSDKWorker.js",
-          serviceWorkerParam: { scope: "/kuromoney/" },
-          notifyButton: { enable: true },
+          serviceWorkerPath: isGithubSubpath ? "kuromoney/OneSignalSDKWorker.js" : "OneSignalSDKWorker.js",
+          serviceWorkerParam: { scope: isGithubSubpath ? "/kuromoney/" : "/" },
+          notifyButton: { enable: false },
           allowLocalhostAsSecureOrigin: true
         });
-        // Tự động gọi popup cấp quyền thông báo khi mở web
-        if (OneSignal.Slidedown) {
-          OneSignal.Slidedown.promptPush();
+        window.kuroOneSignal = OneSignal;
+
+        // Nếu điện thoại đã bấm Cho phép thông báo từ trước -> tự động đăng ký Push Token lên OneSignal ngay
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          try {
+            if (OneSignal.User && OneSignal.User.PushSubscription) {
+              await OneSignal.User.PushSubscription.optIn();
+            }
+          } catch (e) {}
         }
+
+        // Lưu Subscription ID lên Firebase để kiểm tra trạng thái kết nối 2 máy
+        const syncSubIdToCloud = async () => {
+          try {
+            const subId = OneSignal.User?.PushSubscription?.id;
+            if (subId && typeof currentUser !== 'undefined' && currentUser && currentUser.id !== 'guest') {
+              await fetch(`https://kuromoney-default-rtdb.asia-southeast1.firebasedatabase.app/usersList/${currentUser.id}/onesignalSubId.json`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(subId)
+              });
+            }
+          } catch (e) {}
+        };
+        setTimeout(syncSubIdToCloud, 2000);
+        if (OneSignal.User && OneSignal.User.PushSubscription) {
+          OneSignal.User.PushSubscription.addEventListener('change', syncSubIdToCloud);
+        }
+
+        // Trên iOS 16.4+ PWA: Apple yêu cầu thao tác chạm (user gesture) để kích hoạt Push Token lần đầu
+        const ensurePushOnTouch = async () => {
+          try {
+            const subId = OneSignal.User?.PushSubscription?.id;
+            const optedIn = OneSignal.User?.PushSubscription?.optedIn;
+            if (!subId || !optedIn) {
+              await OneSignal.Notifications.requestPermission();
+              if (OneSignal.User && OneSignal.User.PushSubscription) {
+                await OneSignal.User.PushSubscription.optIn();
+              }
+              setTimeout(syncSubIdToCloud, 1000);
+            }
+          } catch (e) {}
+        };
+        window.addEventListener('click', ensurePushOnTouch, { once: true });
       } catch (err) {
         console.warn('OneSignal init error:', err);
       }
     });
 
-    const ONESIGNAL_APP_ID = "b2825cfe-c105-4cad-a6d5-eaa5dbaa1e99";
-    const ONESIGNAL_REST_KEY = atob("b3NfdjJfYXBwX3drYmZ6N3diYXZnazNqd3Y1a3M1eGtxNnRlbHR1dTI1eDR1ZWFtbXloZXRwYzRhcXdkM3NqZG51aGlyeGl2dnhwNHY1NGs1b3RtZnpjanJsbXZoeG5vdXBpd3VoajZydzUzdnp6c3k=");
-
     async function sendOneSignalPushToDevices(title, body) {
       try {
+        const cleanBody = body.replace(/<[^>]+>/g, '');
         const payload = {
           app_id: ONESIGNAL_APP_ID,
+          target_channel: "push",
           included_segments: ['Total Subscriptions'],
-          headings: { en: title },
-          contents: { en: body.replace(/<[^>]+>/g, '') },
+          headings: { en: title, vi: title },
+          contents: { en: cleanBody, vi: cleanBody },
+          priority: 10,
+          ios_sound: "default",
           web_url: 'https://nguyentomat.github.io/kuromoney/',
-          app_url: 'https://nguyentomat.github.io/kuromoney/',
           chrome_web_icon: 'https://nguyentomat.github.io/kuromoney/assets/apple-touch-icon.png',
           firefox_icon: 'https://nguyentomat.github.io/kuromoney/assets/apple-touch-icon.png'
         };
@@ -3200,6 +3244,64 @@
            TAB 2: THỐNG KÊ (ANALYTICS & CHARTS)
            ========================================== -->
       <div class="tab-content-panel" id="panelStats">
+
+        <!-- Ô TỔNG KẾT TIỀN VÀO - TIỀN RA & SỐ DƯ TRONG THÁNG -->
+        <div class="balance-card" id="monthlyCashflowCard" style="background: linear-gradient(135deg, #4C1D95 0%, #7E22CE 48%, #BE185D 100%); padding: 18px 18px 16px; margin-bottom: 14px; border: 1.5px solid rgba(244, 114, 182, 0.45);">
+          <div class="balance-top" style="margin-bottom: 6px;">
+            <span style="display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800; color:#FCE7F3;">
+              <span>💰 TỔNG KẾT TIỀN</span>
+              <span id="monthCashflowTitleBadge" style="background:rgba(255,255,255,0.2); padding:2px 7px; border-radius:8px; font-size:10px;">THÁNG 10</span>
+            </span>
+            <span id="monthWalletStatusBadge" style="background:rgba(16, 185, 129, 0.25); border:1px solid rgba(167, 243, 208, 0.6); color:#A7F3D0; padding:3px 10px; border-radius:12px; font-size:10px; font-weight:800;">
+              🟢 Đang còn tiền ✨
+            </span>
+          </div>
+
+          <div style="font-size:10px; color:#E9D5FF; font-weight:700; letter-spacing:0.3px; margin-top:4px;">
+            SỐ TIỀN HIỆN CÒN TRONG THÁNG (TIỀN VÀO - TIỀN RA)
+          </div>
+          <div class="balance-amount" id="monthNetRemainingVal" style="font-size:28px; margin: 3px 0 8px;">0 đ</div>
+
+          <div id="monthNetStatusNote" style="background:rgba(0, 0, 0, 0.22); border-radius:12px; padding:7px 11px; font-size:11px; line-height:1.4; color:#FDF2F8; font-weight:600; margin-bottom:12px; border-left:3px solid #F472B6;">
+            Chưa có giao dịch trong tháng này. Hãy bấm dấu + để ghi Tiền Vào hoặc Tiền Chi nhé! ✨
+          </div>
+
+          <!-- 2 Ô: Tổng Tiền Vào (+) và Tổng Tiền Ra (-) Trong Tháng -->
+          <div class="cashflow-row" style="padding: 11px 12px; gap: 10px; background: rgba(255, 255, 255, 0.14);">
+            <div class="cashflow-item" style="background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(167, 243, 208, 0.35); border-radius: 13px; padding: 8px 10px;">
+              <span class="cashflow-label" style="color:#D1FAE5; font-size:10px; display:flex; align-items:center; justify-content:space-between;">
+                <span>📥 TỔNG TIỀN VÀO (+)</span>
+              </span>
+              <span class="cashflow-val in" id="monthTotalInVal" style="font-size:15px; margin-top:3px; color:#6EE7B7;">+0 đ</span>
+              <span id="monthTotalInSub" style="font-size:9px; color:#ECFDF5; opacity:0.9; margin-top:3px; font-weight:600; line-height:1.3;">0 khoản cộng</span>
+            </div>
+
+            <div class="cashflow-item" style="background: rgba(244, 63, 94, 0.18); border: 1px solid rgba(254, 205, 211, 0.35); border-radius: 13px; padding: 8px 10px;">
+              <span class="cashflow-label" style="color:#FFE4E6; font-size:10px; display:flex; align-items:center; justify-content:space-between;">
+                <span>📤 TỔNG TIỀN RA (-)</span>
+              </span>
+              <span class="cashflow-val out" id="monthTotalOutVal" style="font-size:15px; margin-top:3px; color:#FDA4AF;">-0 đ</span>
+              <span id="monthTotalOutSub" style="font-size:9px; color:#FFF1F2; opacity:0.9; margin-top:3px; font-weight:600; line-height:1.3;">0 khoản chi</span>
+            </div>
+          </div>
+
+          <!-- Thanh tỷ lệ Đã Tiêu / Tiền Vào & Nút Nạp Tiền Nhanh -->
+          <div style="margin-top: 11px;">
+            <div style="display:flex; justify-content:space-between; font-size:9.5px; font-weight:700; color:#F3E8FF; margin-bottom:4px;">
+              <span id="monthCashflowRatioLeft">Tỷ lệ tiêu / tiền vào: 0%</span>
+              <span id="monthCashflowRatioRight">Còn dư: 100%</span>
+            </div>
+            <div style="height:8px; width:100%; background:rgba(255,255,255,0.2); border-radius:10px; overflow:hidden; display:flex;">
+              <div id="monthCashflowOutBar" style="width:0%; background:linear-gradient(90deg, #FB7185, #E11D48); transition:width 0.4s ease;"></div>
+              <div id="monthCashflowRemainBar" style="width:100%; background:linear-gradient(90deg, #34D399, #10B981); transition:width 0.4s ease;"></div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:9px;">
+              <button onclick="openQuickIncomeModal()" style="border:1px solid rgba(255,255,255,0.4); background:rgba(255,255,255,0.18); color:#FFFFFF; font-size:10px; font-weight:800; padding:5px 11px; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">
+                <span>➕ Ghi Tiền Cộng (+) Vào Tháng Này</span>
+              </button>
+            </div>
+          </div>
+        </div>
         
         <!-- Sổ Đen Kuromi Roast -->
         <div class="kuromi-roast-box">
@@ -5426,6 +5528,67 @@
     let isListeningRealtime = false;
     let lastRemoteUpdateTimestamp = 0;
 
+    function detectAndNotifyPartnerChanges(decodedRemote, remoteUpdatedBy, remoteUpdatedAt, prevTs) {
+      if (!currentUser || currentUser.id === 'guest') return;
+      const lastSeenKey = 'KURO_LAST_SEEN_TS_' + currentUser.id;
+      const lastNotifiedTxKey = 'KURO_LAST_NOTIFIED_TX_' + currentUser.id;
+      const savedLastSeenTs = parseInt(localStorage.getItem(lastSeenKey) || '0', 10);
+      const savedLastNotifiedId = localStorage.getItem(lastNotifiedTxKey) || '';
+
+      const newPartnerTxs = [];
+      const myNameLower = (currentUser.name || '').trim().toLowerCase();
+      const hasExistingLocalData = Object.keys(appData || {}).some(k => appData[k] && Array.isArray(appData[k].txs) && appData[k].txs.length > 0);
+
+      if (decodedRemote && typeof decodedRemote === 'object') {
+        Object.keys(decodedRemote).forEach(dateK => {
+          const rDay = decodedRemote[dateK];
+          if (rDay && Array.isArray(rDay.txs)) {
+            const localDay = appData[dateK];
+            const localTxMap = new Map();
+            if (localDay && Array.isArray(localDay.txs)) {
+              localDay.txs.forEach(t => localTxMap.set(t.id, t));
+            }
+            rDay.txs.forEach(rtx => {
+              if (!rtx || rtx.isDeleted) return;
+              const txWhoLower = (rtx.who || '').trim().toLowerCase();
+              const isFromPartner = (txWhoLower && txWhoLower !== myNameLower) || (remoteUpdatedBy && remoteUpdatedBy.trim().toLowerCase() !== myNameLower);
+              const isRecent = !rtx.createdAt || (Date.now() - rtx.createdAt < 43200000); // Trong vòng 12 giờ
+              if (isRecent && (!localTxMap.has(rtx.id) || (savedLastSeenTs > 0 && rtx.createdAt && rtx.createdAt > savedLastSeenTs))) {
+                if (isFromPartner && rtx.id !== savedLastNotifiedId) {
+                  newPartnerTxs.push(rtx);
+                }
+              }
+            });
+          }
+        });
+      }
+
+      if (remoteUpdatedAt) {
+        try { localStorage.setItem(lastSeenKey, remoteUpdatedAt.toString()); } catch (e) {}
+      }
+
+      // Sắp xếp theo thời gian tạo mới nhất
+      newPartnerTxs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+      if (newPartnerTxs.length > 0 && (prevTs > 0 || savedLastSeenTs > 0 || hasExistingLocalData)) {
+        const latestTx = newPartnerTxs[newPartnerTxs.length - 1];
+        try { localStorage.setItem(lastNotifiedTxKey, latestTx.id); } catch (e) {}
+        const sign = latestTx.isIncome ? '+' : '-';
+        const payer = latestTx.who || remoteUpdatedBy || 'Người ấy';
+        sendAppNotification(
+          `🎀 ${payer} Vừa ${latestTx.isIncome ? 'Nạp Tiền' : 'Chi Tiêu'} 💸`,
+          `<strong>${payer}</strong> vừa thêm: <strong>${sign}${latestTx.amount}đ</strong> ("${latestTx.title}")!`,
+          { tag: 'VÍ CHUNG' }
+        );
+      } else if (prevTs > 0 && remoteUpdatedBy && remoteUpdatedBy.trim().toLowerCase() !== myNameLower) {
+        sendAppNotification(
+          `🎀 ${remoteUpdatedBy} Vừa Cập Nhật Ví 💸`,
+          `<strong>${remoteUpdatedBy}</strong> vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`,
+          { tag: 'VÍ CHUNG' }
+        );
+      }
+    }
+
     async function pullSyncFromServer() {
       if (!currentUser || currentUser.id === 'guest') return;
 
@@ -5437,30 +5600,9 @@
             if (remote && remote.updatedAt && remote.updatedAt > lastRemoteUpdateTimestamp) {
               const prevTs = lastRemoteUpdateTimestamp;
               lastRemoteUpdateTimestamp = remote.updatedAt;
-              const isPartnerUpdate = (remote.updatedBy && remote.updatedBy !== currentUser.name);
               const decodedRemote = decodeAppDataFromFirebase(remote.appData, remote.appDataJson);
 
-              // Tìm chính xác giao dịch mới do máy đối phương vừa thêm
-              const newPartnerTxs = [];
-              if (decodedRemote && typeof decodedRemote === 'object') {
-                Object.keys(decodedRemote).forEach(dateK => {
-                  const rDay = decodedRemote[dateK];
-                  if (rDay && Array.isArray(rDay.txs)) {
-                    const localDay = appData[dateK];
-                    const localTxMap = new Map();
-                    if (localDay && Array.isArray(localDay.txs)) {
-                      localDay.txs.forEach(t => localTxMap.set(t.id, t));
-                    }
-                    rDay.txs.forEach(rtx => {
-                      if (!rtx.isDeleted && !localTxMap.has(rtx.id)) {
-                        if (!rtx.createdAt || (Date.now() - rtx.createdAt < 300000)) {
-                          newPartnerTxs.push(rtx);
-                        }
-                      }
-                    });
-                  }
-                });
-              }
+              detectAndNotifyPartnerChanges(decodedRemote, remote.updatedBy, remote.updatedAt, prevTs);
 
               if (decodedRemote && Object.keys(decodedRemote).length > 0) {
                 appData = mergeAppData(appData, decodedRemote);
@@ -5471,24 +5613,6 @@
               const potKey = getStorageKeyForPots();
               try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
               loadUserDatabase(true);
-
-              // Phát chuông Kuromi & hiện Dynamic Island trên máy nhận
-              if (prevTs > 0 && newPartnerTxs.length > 0) {
-                const latestTx = newPartnerTxs[newPartnerTxs.length - 1];
-                const sign = latestTx.isIncome ? '+' : '-';
-                const payer = latestTx.who || remote.updatedBy || 'Người ấy';
-                sendAppNotification(
-                  `🎀 ${payer} Vừa ${latestTx.isIncome ? 'Nạp Tiền' : 'Chi Tiêu'} 💸`,
-                  `<strong>${payer}</strong> vừa thêm: <strong>${sign}${latestTx.amount}đ</strong> ("${latestTx.title}")!`,
-                  { tag: 'VÍ CHUNG' }
-                );
-              } else if (prevTs > 0 && isPartnerUpdate) {
-                sendAppNotification(
-                  `🎀 ${remote.updatedBy} Vừa Cập Nhật Ví 💸`,
-                  `<strong>${remote.updatedBy}</strong> vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`,
-                  { tag: 'VÍ CHUNG' }
-                );
-              }
             }
           });
           isListeningRealtime = true;
@@ -5525,30 +5649,9 @@
           if (remoteData.updatedAt && remoteData.updatedAt > lastRemoteUpdateTimestamp) {
             const prevTs = lastRemoteUpdateTimestamp;
             lastRemoteUpdateTimestamp = remoteData.updatedAt;
-            const isPartnerUpdate = (remoteData.updatedBy && remoteData.updatedBy !== currentUser.name);
             const decodedRemote = decodeAppDataFromFirebase(remoteData.appData, remoteData.appDataJson);
 
-            // Tìm chính xác giao dịch mới do máy đối phương vừa thêm qua polling
-            const newPartnerTxs = [];
-            if (decodedRemote && typeof decodedRemote === 'object') {
-              Object.keys(decodedRemote).forEach(dateK => {
-                const rDay = decodedRemote[dateK];
-                if (rDay && Array.isArray(rDay.txs)) {
-                  const localDay = appData[dateK];
-                  const localTxMap = new Map();
-                  if (localDay && Array.isArray(localDay.txs)) {
-                    localDay.txs.forEach(t => localTxMap.set(t.id, t));
-                  }
-                  rDay.txs.forEach(rtx => {
-                    if (!rtx.isDeleted && !localTxMap.has(rtx.id)) {
-                      if (!rtx.createdAt || (Date.now() - rtx.createdAt < 300000)) {
-                        newPartnerTxs.push(rtx);
-                      }
-                    }
-                  });
-                }
-              });
-            }
+            detectAndNotifyPartnerChanges(decodedRemote, remoteData.updatedBy, remoteData.updatedAt, prevTs);
 
             if (decodedRemote && Object.keys(decodedRemote).length > 0) {
               appData = mergeAppData(appData, decodedRemote);
@@ -5559,23 +5662,6 @@
             const potKey = getStorageKeyForPots();
             try { localStorage.setItem(potKey, JSON.stringify(kuroPots)); } catch(e) {}
             loadUserDatabase(true);
-
-            if (prevTs > 0 && newPartnerTxs.length > 0) {
-              const latestTx = newPartnerTxs[newPartnerTxs.length - 1];
-              const sign = latestTx.isIncome ? '+' : '-';
-              const payer = latestTx.who || remoteData.updatedBy || 'Người ấy';
-              sendAppNotification(
-                `🎀 ${payer} Vừa ${latestTx.isIncome ? 'Nạp Tiền' : 'Chi Tiêu'} 💸`,
-                `<strong>${payer}</strong> vừa thêm: <strong>${sign}${latestTx.amount}đ</strong> ("${latestTx.title}")!`,
-                { tag: 'VÍ CHUNG' }
-              );
-            } else if (prevTs > 0 && isPartnerUpdate) {
-              sendAppNotification(
-                `🎀 ${remoteData.updatedBy} Vừa Cập Nhật Ví 💸`,
-                `<strong>${remoteData.updatedBy}</strong> vừa cập nhật ví chung của hai đứa kìa sen! 💖💸`,
-                { tag: 'VÍ CHUNG' }
-              );
-            }
           }
         }
       } catch(e) {}
@@ -5608,6 +5694,18 @@
         window.kuroSyncInterval = setInterval(pullSyncFromServer, 3000);
       }
 
+      // Tự động kéo dữ liệu & bắn thông báo ngay lập tức khi bật sáng màn hình / quay lại app
+      if (!window.kuroVisibilityBound) {
+        window.kuroVisibilityBound = true;
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            pullSyncFromServer();
+          }
+        });
+        window.addEventListener('focus', () => pullSyncFromServer());
+        window.addEventListener('pageshow', () => pullSyncFromServer());
+      }
+
       // Tự động phát nhạc nền Kuromi khi vào app (kèm unlocker 1 chạm cho iOS Safari)
       if (typeof startKuromiBgm === 'function') {
         startKuromiBgm();
@@ -5622,9 +5720,6 @@
       window.addEventListener('touchstart', unlockBgm, { once: true, passive: true });
       window.addEventListener('click', unlockBgm, { once: true, passive: true });
 
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-      }
       if (window.lucide) lucide.createIcons();
     }
 
@@ -7010,10 +7105,25 @@
       sendAppNotification("Đã Đổi Giờ Nhắc ⏰", `Bé Kuromi sẽ nhắc bạn ghi sổ vào lúc ${val} mỗi ngày nha! 🎀`);
     }
 
-    function requestNotificationPermission() {
-      if (window.OneSignal && OneSignal.Slidedown) {
-        try { OneSignal.Slidedown.promptPush(); } catch(e) {}
-      }
+    async function requestNotificationPermission() {
+      try {
+        if (window.kuroOneSignal) {
+          await window.kuroOneSignal.Notifications.requestPermission();
+          if (window.kuroOneSignal.User && window.kuroOneSignal.User.PushSubscription) {
+            await window.kuroOneSignal.User.PushSubscription.optIn();
+          }
+        } else if (window.OneSignalDeferred) {
+          window.OneSignalDeferred.push(async function(OneSignal) {
+            try {
+              await OneSignal.Notifications.requestPermission();
+              if (OneSignal.User && OneSignal.User.PushSubscription) {
+                await OneSignal.User.PushSubscription.optIn();
+              }
+            } catch (e) {}
+          });
+        }
+      } catch (e) {}
+
       if ('Notification' in window) {
         if (Notification.permission === 'default') {
           Notification.requestPermission().then(perm => {
@@ -7099,11 +7209,13 @@
       }
     }
 
-    function testPushNotification() {
-      requestNotificationPermission();
-      sendAppNotification("Kuromi Chuông Reo 🔔✨", "Ting ting! Bé Kuromi đã bật chuông thông báo cute cho bạn rồi nè! 💖💸", { tag: 'TEST CHUÔNG' });
+    async function testPushNotification() {
+      await requestNotificationPermission();
+      sendAppNotification("Kuromi Chuông Reo 🔔✨", "Ting ting! Bé Kuromi đã bật chuông thông báo màn hình khóa cho bạn rồi nè! 💖💸", { tag: 'TEST CHUÔNG' });
       if (typeof sendOneSignalPushToDevices === 'function') {
-        sendOneSignalPushToDevices("Kuromi Chuông Reo 🔔✨", "Ting ting! Bé Kuromi vừa gửi thông báo thử nghiệm ra màn hình khóa cho bạn nè! 💖💸");
+        setTimeout(() => {
+          sendOneSignalPushToDevices("Kuromi Chuông Reo 🔔✨", "Ting ting! Bé Kuromi vừa gửi thông báo thử nghiệm ra màn hình khóa cho 2 máy nè! 💖💸");
+        }, 800);
       }
     }
 
@@ -7119,7 +7231,6 @@
           const regs = await navigator.serviceWorker.getRegistrations();
           for (let reg of regs) {
             await reg.update();
-            await reg.unregister();
           }
         }
       } catch(e) {}
@@ -7626,14 +7737,32 @@
     // ========================================================
     // TÍNH TOÁN THỐNG KÊ, BIỂU ĐỒ 7 NGÀY & CỐ VẤN AI
     // ========================================================
+    function openQuickIncomeModal() {
+      openManualModal();
+      if (typeof setTxType === 'function') {
+        setTxType('income');
+      }
+    }
+
     function calculateMonthlyTotals() {
       let totalIncome = 0;
       let totalExpense = 0;
       let meExpense = 0;
       let partnerExpense = 0;
+      let meIncome = 0;
+      let partnerIncome = 0;
+      let incomeCount = 0;
+      let expenseCount = 0;
 
-      const meName = (typeof userProfile !== 'undefined' && userProfile.myName) ? userProfile.myName : 'Tôi';
-      const partnerName = (typeof userProfile !== 'undefined' && userProfile.partnerName) ? userProfile.partnerName : 'Người ấy';
+      const meName = (typeof currentUser !== 'undefined' && currentUser && currentUser.id !== 'guest' && currentUser.name)
+        ? currentUser.name
+        : ((typeof userProfile !== 'undefined' && userProfile.myName) ? userProfile.myName : 'Tôi');
+      const partnerName = (typeof currentUser !== 'undefined' && currentUser && currentUser.partnerName)
+        ? currentUser.partnerName
+        : ((typeof userProfile !== 'undefined' && userProfile.partnerName) ? userProfile.partnerName : 'Người ấy');
+
+      const meLower = meName.trim().toLowerCase();
+      const partnerLower = partnerName.trim().toLowerCase();
 
       Object.keys(appData).forEach(k => {
         const day = appData[k];
@@ -7641,13 +7770,25 @@
           day.txs.forEach(t => {
             if (!t || t.isDeleted) return;
             const num = parseAmountNum(t.amount);
+            const whoLower = (t.who || '').trim().toLowerCase();
+            const isMe = (whoLower === meLower || t.who === 'Tôi' || t.who === 'Vũ' || t.who === 'Vu');
+            const isPartner = (whoLower === partnerLower || t.who === 'Người ấy' || t.who === 'Em');
+
             if (t.isIncome) {
               totalIncome += num;
+              incomeCount++;
+              if (isMe) meIncome += num;
+              else if (isPartner) partnerIncome += num;
+              else {
+                meIncome += num / 2;
+                partnerIncome += num / 2;
+              }
             } else {
               totalExpense += num;
-              if (t.who === meName || t.who === 'Tôi' || t.who === 'Vũ' || t.who === 'Vu') {
+              expenseCount++;
+              if (isMe) {
                 meExpense += num;
-              } else if (t.who === partnerName || t.who === 'Người ấy' || t.who === 'Em') {
+              } else if (isPartner) {
                 partnerExpense += num;
               } else {
                 meExpense += num / 2;
@@ -7658,14 +7799,122 @@
         }
       });
 
-      return { totalIncome, totalExpense, meExpense, partnerExpense };
+      return { totalIncome, totalExpense, meExpense, partnerExpense, meIncome, partnerIncome, incomeCount, expenseCount };
     }
 
     function renderSmartAiAdvisor() {
       const totals = calculateMonthlyTotals();
       const budget = (typeof userProfile !== 'undefined' && userProfile.monthlyBudget) ? userProfile.monthlyBudget : 10000000;
+      const meName = (typeof currentUser !== 'undefined' && currentUser && currentUser.id !== 'guest' && currentUser.name)
+        ? currentUser.name
+        : ((typeof userProfile !== 'undefined' && userProfile.myName) ? userProfile.myName : 'Tôi');
+      const partnerName = (typeof currentUser !== 'undefined' && currentUser && currentUser.partnerName)
+        ? currentUser.partnerName
+        : ((typeof userProfile !== 'undefined' && userProfile.partnerName) ? userProfile.partnerName : 'Người ấy');
+
+      // 1. CẬP NHẬT Ô TỔNG KẾT TIỀN VÀO - TIỀN RA & SỐ DƯ TRONG THÁNG
+      const netBalance = totals.totalIncome - totals.totalExpense;
+      const curMonthNum = new Date().getMonth() + 1;
+
+      const mTitleBadge = document.getElementById('monthCashflowTitleBadge');
+      const mStatusBadge = document.getElementById('monthWalletStatusBadge');
+      const mNetVal = document.getElementById('monthNetRemainingVal');
+      const mNetNote = document.getElementById('monthNetStatusNote');
+      const mTotalIn = document.getElementById('monthTotalInVal');
+      const mTotalInSub = document.getElementById('monthTotalInSub');
+      const mTotalOut = document.getElementById('monthTotalOutVal');
+      const mTotalOutSub = document.getElementById('monthTotalOutSub');
+      const mRatioLeft = document.getElementById('monthCashflowRatioLeft');
+      const mRatioRight = document.getElementById('monthCashflowRatioRight');
+      const mOutBar = document.getElementById('monthCashflowOutBar');
+      const mRemainBar = document.getElementById('monthCashflowRemainBar');
+
+      if (mTitleBadge) mTitleBadge.innerText = `THÁNG ${curMonthNum}`;
+      if (mTotalIn) mTotalIn.innerText = `+${totals.totalIncome.toLocaleString('vi-VN')} đ`;
+      if (mTotalInSub) {
+        mTotalInSub.innerText = `${totals.incomeCount} khoản cộng • ${meName}: +${formatCompactMoney(totals.meIncome)} | ${partnerName}: +${formatCompactMoney(totals.partnerIncome)}`;
+      }
+      if (mTotalOut) mTotalOut.innerText = `-${totals.totalExpense.toLocaleString('vi-VN')} đ`;
+      if (mTotalOutSub) {
+        mTotalOutSub.innerText = `${totals.expenseCount} khoản chi • ${meName}: -${formatCompactMoney(totals.meExpense)} | ${partnerName}: -${formatCompactMoney(totals.partnerExpense)}`;
+      }
+
+      if (mNetVal) {
+        const sign = netBalance > 0 ? '+' : '';
+        mNetVal.innerText = `${sign}${netBalance.toLocaleString('vi-VN')} đ`;
+        mNetVal.style.color = netBalance > 0 ? '#6EE7B7' : (netBalance < 0 ? '#FDA4AF' : '#FFFFFF');
+      }
+
+      if (totals.totalIncome === 0 && totals.totalExpense === 0) {
+        if (mStatusBadge) {
+          mStatusBadge.innerText = '⚪ Chưa có biến động';
+          mStatusBadge.style.background = 'rgba(255,255,255,0.18)';
+          mStatusBadge.style.color = '#F3E8FF';
+          mStatusBadge.style.borderColor = 'rgba(255,255,255,0.35)';
+        }
+        if (mNetNote) {
+          mNetNote.innerHTML = 'Chưa có giao dịch trong tháng này. Hãy bấm dấu <b>+</b> để ghi Tiền Vào hoặc Tiền Chi nhé! ✨';
+          mNetNote.style.borderLeftColor = '#F472B6';
+        }
+        if (mRatioLeft) mRatioLeft.innerText = 'Đã tiêu: 0%';
+        if (mRatioRight) mRatioRight.innerText = 'Còn tiền: 100%';
+        if (mOutBar) mOutBar.style.width = '0%';
+        if (mRemainBar) mRemainBar.style.width = '100%';
+      } else if (netBalance > 0) {
+        const spentOfInPct = totals.totalIncome > 0 ? Math.min(100, Math.round((totals.totalExpense / totals.totalIncome) * 100)) : 0;
+        const remainOfInPct = Math.max(0, 100 - spentOfInPct);
+        if (mStatusBadge) {
+          mStatusBadge.innerText = `🟢 Còn tiền dư (${remainOfInPct}%) ✨`;
+          mStatusBadge.style.background = 'rgba(16, 185, 129, 0.28)';
+          mStatusBadge.style.color = '#A7F3D0';
+          mStatusBadge.style.borderColor = 'rgba(167, 243, 208, 0.65)';
+        }
+        if (mNetNote) {
+          mNetNote.innerHTML = `💖 Ví tháng này đang <b>còn dư +${netBalance.toLocaleString('vi-VN')}đ</b> (mới tiêu hết <b>${spentOfInPct}%</b> tổng tiền vào, vẫn còn <b>${remainOfInPct}%</b> tiền trong ví)!`;
+          mNetNote.style.borderLeftColor = '#34D399';
+        }
+        if (mRatioLeft) mRatioLeft.innerText = `Đã tiêu: ${spentOfInPct}% tiền vào`;
+        if (mRatioRight) mRatioRight.innerText = `Còn lại: ${remainOfInPct}% (+${formatCompactMoney(netBalance)})`;
+        if (mOutBar) mOutBar.style.width = spentOfInPct + '%';
+        if (mRemainBar) mRemainBar.style.width = remainOfInPct + '%';
+      } else if (netBalance === 0 && totals.totalIncome > 0) {
+        if (mStatusBadge) {
+          mStatusBadge.innerText = '🟡 Hết sạch tiền vào!';
+          mStatusBadge.style.background = 'rgba(245, 158, 11, 0.3)';
+          mStatusBadge.style.color = '#FDE68A';
+          mStatusBadge.style.borderColor = 'rgba(253, 230, 138, 0.65)';
+        }
+        if (mNetNote) {
+          mNetNote.innerHTML = `⚠️ Hai đứa vừa tiêu <b>hết sạch 100%</b> số tiền vào của tháng này rồi! Số dư hiện tại bằng <b>0đ</b>!`;
+          mNetNote.style.borderLeftColor = '#FBBF24';
+        }
+        if (mRatioLeft) mRatioLeft.innerText = 'Đã tiêu: 100% tiền vào';
+        if (mRatioRight) mRatioRight.innerText = 'Còn lại: 0đ (Hết tiền)';
+        if (mOutBar) mOutBar.style.width = '100%';
+        if (mRemainBar) mRemainBar.style.width = '0%';
+      } else {
+        // netBalance < 0 (Đang âm tiền / Chi vượt thu)
+        if (mStatusBadge) {
+          mStatusBadge.innerText = '🔴 Đang hết tiền / Âm ví 😱';
+          mStatusBadge.style.background = 'rgba(244, 63, 94, 0.35)';
+          mStatusBadge.style.color = '#FECDD3';
+          mStatusBadge.style.borderColor = 'rgba(254, 205, 211, 0.75)';
+        }
+        if (mNetNote) {
+          if (totals.totalIncome === 0) {
+            mNetNote.innerHTML = `💸 Tháng này đã chi <b>-${totals.totalExpense.toLocaleString('vi-VN')}đ</b> nhưng chưa ghi khoản <b>Tiền Cộng (+)</b> nào! Đang tạm âm <b>-${Math.abs(netBalance).toLocaleString('vi-VN')}đ</b> (Bấm nút bên dưới để nạp Lương/Tiền vào ví nhé)!`;
+          } else {
+            mNetNote.innerHTML = `🚨 Báo động đỏ! Tiền ra đã vượt quá tiền vào! Hai đứa đã <b>hết sạch tiền</b> và đang chi lố <b>-${Math.abs(netBalance).toLocaleString('vi-VN')}đ</b>!`;
+          }
+          mNetNote.style.borderLeftColor = '#FB7185';
+        }
+        if (mRatioLeft) mRatioLeft.innerText = totals.totalIncome > 0 ? `Chi vượt thu: ${Math.round((totals.totalExpense / totals.totalIncome) * 100)}%` : `Đã chi: -${formatCompactMoney(totals.totalExpense)}`;
+        if (mRatioRight) mRatioRight.innerText = `Thiếu hụt: -${formatCompactMoney(Math.abs(netBalance))}`;
+        if (mOutBar) mOutBar.style.width = '100%';
+        if (mRemainBar) mRemainBar.style.width = '0%';
+      }
       
-      const daysPassed = 10;
+      const daysPassed = Math.max(1, new Date().getDate());
       const dailyBurn = Math.round(totals.totalExpense / Math.max(1, daysPassed));
       const forecastMonth = Math.round(dailyBurn * 31);
       const remainingBudget = Math.max(0, budget - totals.totalExpense);
@@ -7732,8 +7981,6 @@
       if (remLabel) remLabel.innerText = `Còn lại: ${remainingBudget.toLocaleString('vi-VN')}đ (${remainingPct > 20 ? 'An toàn ✨' : 'Cần tiết kiệm ⚠️'})`;
 
       // So Sánh Cặp Đôi Động
-      const meName = (typeof userProfile !== 'undefined' && userProfile.myName) ? userProfile.myName : 'Tôi';
-      const partnerName = (typeof userProfile !== 'undefined' && userProfile.partnerName) ? userProfile.partnerName : 'Người ấy';
       const totalCoupleExp = totals.meExpense + totals.partnerExpense;
       const mePct = totalCoupleExp > 0 ? Math.round((totals.meExpense / totalCoupleExp) * 100) : 50;
       const partnerPct = 100 - mePct;
